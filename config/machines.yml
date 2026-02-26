@@ -1,0 +1,64 @@
+# Fabrik Network - Machine Configuration
+# ==========================================
+# This file defines known machines and their SSH access credentials.
+# New machines discovered on the network will be added automatically.
+
+defaults:
+  ssh_user: fabrik
+  ssh_port: 22
+  ssh_key: /app/config/ssh_keys/id_rsa
+  check_interval: 30  # seconds
+
+machines:
+  # Mac Studio - Host / Controller
+  - name: "Mac Studio (Host)"
+    ip: "192.168.44.1"
+    role: "controller"
+    ssh_user: fabrik
+    ssh_port: 22
+    tags:
+      - docker-host
+      - dashboard
+    description: "Main Mac Studio running Docker and Dashboard"
+
+  # Example Worker VM
+  # - name: "Worker-01"
+  #   ip: "192.168.44.10"
+  #   role: "agent"
+  #   ssh_user: fabrik
+  #   ssh_port: 22
+  #   tags:
+  #     - code-agent
+  #     - builder
+  #   description: "Code generation and build agent"
+
+# Agent roles define what services to check on each machine
+agent_roles:
+  controller:
+    services:
+      - docker
+      - fabrik-dashboard
+    description: "Main controller node"
+  agent:
+    services:
+      - fabrik-agent
+      - docker
+    description: "Worker agent node"
+  builder:
+    services:
+      - fabrik-builder
+      - docker
+    description: "Build and CI agent"
+  reviewer:
+    services:
+      - fabrik-reviewer
+    description: "Code review agent"
+
+# Auto-discovery settings
+auto_discovery:
+  enabled: true
+  subnet: "192.168.44.0/24"
+  exclude_ips:
+    - "192.168.44.255"  # Broadcast
+  ssh_fingerprint_check: false  # Set true in production
+  default_role: "agent"
