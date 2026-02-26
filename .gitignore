@@ -1,0 +1,28 @@
+# Environment
+.env
+*.env.local
+
+# SSH Keys - NEVER commit these
+config/ssh_keys/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Node
+frontend/node_modules/
+frontend/build/
+frontend/.env.local
+
+# Docker
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store

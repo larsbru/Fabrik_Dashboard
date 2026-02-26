@@ -1,0 +1,120 @@
+.sidebar {
+  width: 240px;
+  min-width: 240px;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border-subtle);
+  padding: var(--space-md);
+  gap: var(--space-md);
+}
+
+.sidebar-header {
+  padding: var(--space-sm) var(--space-xs);
+}
+
+.sidebar-logo {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  color: var(--text-primary);
+}
+
+.sidebar-logo svg {
+  color: var(--accent-blue);
+}
+
+.sidebar-logo-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-title {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.sidebar-subtitle {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  letter-spacing: 0.02em;
+}
+
+.sidebar-nav {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 10px 12px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-family);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  width: 100%;
+  text-align: left;
+}
+
+.nav-item:hover {
+  background: var(--glass-bg);
+  color: var(--text-primary);
+}
+
+.nav-item.active {
+  background: rgba(10, 132, 255, 0.12);
+  color: var(--accent-blue);
+}
+
+.nav-item.active svg {
+  color: var(--accent-blue);
+}
+
+.sidebar-footer {
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.network-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-sm) var(--space-xs);
+}
+
+.network-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.status-icon.online {
+  color: var(--status-online);
+}
+
+.status-icon.offline {
+  color: var(--status-offline);
+}
+
+.network-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.network-count {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  font-weight: 500;
+}

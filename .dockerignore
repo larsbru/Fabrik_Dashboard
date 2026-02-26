@@ -1,0 +1,12 @@
+.git
+.gitignore
+.env
+*.md
+frontend/node_modules
+frontend/build
+__pycache__
+*.pyc
+.vscode
+.idea
+.DS_Store
+config/ssh_keys

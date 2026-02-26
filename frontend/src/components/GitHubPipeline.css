@@ -1,0 +1,237 @@
+.pipeline-container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.pipeline-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.pipeline-header h3 {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.pipeline-stats {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.stat-badge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+}
+
+.stat-badge.issues {
+  background: rgba(48, 209, 88, 0.08);
+  color: var(--accent-green);
+}
+
+.stat-badge.prs {
+  background: rgba(191, 90, 242, 0.08);
+  color: var(--accent-purple);
+}
+
+.pipeline-loading {
+  padding: var(--space-2xl);
+  border-radius: var(--radius-lg);
+  text-align: center;
+  color: var(--text-tertiary);
+  font-size: 13px;
+}
+
+/* Board */
+.pipeline-board {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-sm);
+}
+
+.pipeline-container.compact .pipeline-board {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.pipeline-column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.pipeline-column-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: var(--space-sm);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.column-name {
+  flex: 1;
+}
+
+.column-count {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  background: rgba(255, 255, 255, 0.04);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+}
+
+.pipeline-column-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 60px;
+}
+
+/* Cards */
+.pipeline-card {
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: all 0.15s ease;
+  cursor: default;
+}
+
+.pipeline-card:hover {
+  background: var(--glass-hover);
+  border-color: var(--border-strong);
+}
+
+.pipeline-card-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pipeline-card-number {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  font-family: 'SF Mono', 'Fira Code', monospace;
+}
+
+.check-pass {
+  color: var(--accent-green);
+  margin-left: auto;
+}
+
+.pipeline-card-title {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.pipeline-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.pipeline-label {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: var(--radius-full);
+  border: 1px solid;
+}
+
+.pr-branch {
+  font-size: 10px;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  color: var(--accent-cyan);
+  background: rgba(100, 210, 255, 0.08);
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+}
+
+.pipeline-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 2px;
+}
+
+.pipeline-avatars {
+  display: flex;
+  gap: -4px;
+}
+
+.pipeline-avatar {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--bg-primary);
+  color: var(--text-tertiary);
+}
+
+.pipeline-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.pipeline-comments {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  color: var(--text-tertiary);
+}
+
+.pr-stats {
+  display: flex;
+  gap: 6px;
+  font-size: 10px;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+}
+
+.pr-additions {
+  color: var(--accent-green);
+}
+
+.pr-deletions {
+  color: var(--accent-red);
+}
+
+.pr-card {
+  border-left: 2px solid var(--accent-purple);
+}
+
+.pipeline-more {
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  padding: var(--space-sm);
+}
+
+@media (max-width: 1000px) {
+  .pipeline-board {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
