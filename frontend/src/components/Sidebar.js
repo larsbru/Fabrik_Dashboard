@@ -9,12 +9,12 @@ const NAV_ITEMS = [
   { id: 'settings', label: 'Einstellungen', icon: Settings },
 ];
 
-function Sidebar({ currentView, onNavigate, machines = [] }) {
+function Sidebar({ currentView, onNavigate, machines = [], isOpen, onClose }) {
   const onlineCount = machines.filter(m => m.status === 'online').length;
   const totalCount = machines.length;
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar ${isOpen ? 'open' : ''}`}>
       <div className="sidebar-header">
         <div className="sidebar-logo">
           <Cpu size={24} strokeWidth={1.5} />

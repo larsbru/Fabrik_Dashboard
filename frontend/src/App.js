@@ -3,6 +3,7 @@ import { useWebSocket } from './hooks/useWebSocket';
 import { useApi } from './hooks/useApi';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
+import SystemStatsBar from './components/SystemStatsBar';
 import NetworkOverview from './components/NetworkOverview';
 import MachineGrid from './components/MachineGrid';
 import MachineDetail from './components/MachineDetail';
@@ -27,6 +28,8 @@ function App() {
   const [githubSummary, setGithubSummary] = useState(null);
   const [selectedMachine, setSelectedMachine] = useState(null);
   const [config, setConfig] = useState(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState(null);
 
   // Initial data fetch
   const fetchData = useCallback(async () => {
@@ -49,6 +52,8 @@ function App() {
   // Handle WebSocket updates
   useEffect(() => {
     if (!lastMessage) return;
+
+    setLastUpdated(new Date());
 
     switch (lastMessage.type) {
       case 'network_update':
@@ -80,6 +85,14 @@ function App() {
     }
   }, [post, selectedMachine]);
 
+  const handleNavigate = useCallback((view) => {
+    setCurrentView(view);
+    setSelectedMachine(null);
+    setSidebarOpen(false);
+  }, []);
+
+  const showStatsBar = currentView === VIEWS.DASHBOARD || currentView === VIEWS.MACHINES;
+
   const renderContent = () => {
     switch (currentView) {
       case VIEWS.DASHBOARD:
@@ -92,6 +105,7 @@ function App() {
                   machines={machines}
                   onSelect={setSelectedMachine}
                   onRefresh={handleRefreshMachine}
+                  githubSummary={githubSummary}
                   compact
                 />
               </div>
@@ -109,12 +123,14 @@ function App() {
                 machine={selectedMachine}
                 onBack={() => setSelectedMachine(null)}
                 onRefresh={handleRefreshMachine}
+                githubSummary={githubSummary}
               />
             ) : (
               <MachineGrid
                 machines={machines}
                 onSelect={setSelectedMachine}
                 onRefresh={handleRefreshMachine}
+                githubSummary={githubSummary}
               />
             )}
           </div>
@@ -135,10 +151,13 @@ function App() {
 
   return (
     <div className="app">
+      {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />}
       <Sidebar
         currentView={currentView}
-        onNavigate={(view) => { setCurrentView(view); setSelectedMachine(null); }}
+        onNavigate={handleNavigate}
         machines={machines}
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
       />
       <div className="main-content">
         <Header
@@ -147,7 +166,10 @@ function App() {
           onScan={handleScan}
           onSync={handleGitHubSync}
           currentView={currentView}
+          onMenuToggle={() => setSidebarOpen(prev => !prev)}
+          lastUpdated={lastUpdated}
         />
+        {showStatsBar && <SystemStatsBar machines={machines} />}
         <div className="content-area">
           {renderContent()}
         </div>

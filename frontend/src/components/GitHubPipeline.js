@@ -1,13 +1,40 @@
-import React from 'react';
-import { GitPullRequest, CircleDot, CheckCircle2, Clock, MessageSquare, User, Tag, AlertTriangle, Settings } from 'lucide-react';
+import React, { useState } from 'react';
+import { GitPullRequest, CircleDot, CheckCircle2, Clock, MessageSquare, User, AlertTriangle, ChevronDown, ChevronRight, Cpu } from 'lucide-react';
 import './GitHubPipeline.css';
 
 const STAGE_CONFIG = {
-  'Backlog': { color: 'var(--text-tertiary)', icon: Clock },
-  'In Progress': { color: 'var(--accent-blue)', icon: CircleDot },
-  'In Review': { color: 'var(--accent-orange)', icon: GitPullRequest },
-  'Done': { color: 'var(--accent-green)', icon: CheckCircle2 },
+  'agent:ready': { color: 'var(--accent-blue)', icon: Clock },
+  'agent:running': { color: 'var(--accent-cyan)', icon: CircleDot },
+  'needs:qa': { color: 'var(--accent-orange)', icon: AlertTriangle },
+  'ready-for-qa': { color: 'var(--accent-yellow)', icon: CheckCircle2 },
+  'agent:qa': { color: 'var(--accent-purple)', icon: CircleDot },
+  'awaiting-uat': { color: 'var(--accent-green)', icon: CheckCircle2 },
 };
+
+const DEFAULT_VISIBLE = 3;
+
+function AssignmentLabel({ labels }) {
+  const assigned = labels?.filter(l => l.name.toLowerCase().startsWith('assigned:'));
+  const retries = labels?.filter(l => l.name.toLowerCase().startsWith('retry:'));
+
+  if (!assigned?.length && !retries?.length) return null;
+
+  return (
+    <div className="pipeline-assignment-labels">
+      {assigned?.map((l, i) => (
+        <span key={i} className="assignment-badge">
+          <Cpu size={8} />
+          {l.name.split(':')[1]}
+        </span>
+      ))}
+      {retries?.map((l, i) => (
+        <span key={i} className="retry-badge">
+          {l.name}
+        </span>
+      ))}
+    </div>
+  );
+}
 
 function IssueCard({ issue }) {
   return (
@@ -20,8 +47,13 @@ function IssueCard({ issue }) {
         <span className="pipeline-card-number">#{issue.number}</span>
       </div>
       <div className="pipeline-card-title">{issue.title}</div>
+      <AssignmentLabel labels={issue.labels} />
       <div className="pipeline-card-meta">
-        {issue.labels?.slice(0, 3).map((label, i) => (
+        {issue.labels?.filter(l =>
+          !l.name.toLowerCase().startsWith('assigned:') &&
+          !l.name.toLowerCase().startsWith('retry:') &&
+          !Object.keys(STAGE_CONFIG).includes(l.name.toLowerCase())
+        ).slice(0, 3).map((label, i) => (
           <span
             key={i}
             className="pipeline-label"
@@ -70,9 +102,14 @@ function PRCard({ pr }) {
         {pr.checks_passed === true && <CheckCircle2 size={12} className="check-pass" />}
       </div>
       <div className="pipeline-card-title">{pr.title}</div>
+      <AssignmentLabel labels={pr.labels} />
       <div className="pipeline-card-meta">
         <span className="pr-branch">{pr.head_branch}</span>
-        {pr.labels?.slice(0, 2).map((label, i) => (
+        {pr.labels?.filter(l =>
+          !l.name.toLowerCase().startsWith('assigned:') &&
+          !l.name.toLowerCase().startsWith('retry:') &&
+          !Object.keys(STAGE_CONFIG).includes(l.name.toLowerCase())
+        ).slice(0, 2).map((label, i) => (
           <span
             key={i}
             className="pipeline-label"
@@ -103,7 +140,21 @@ function PRCard({ pr }) {
   );
 }
 
-function GitHubPipeline({ summary, compact, onNavigate }) {
+function GitHubPipeline({ summary, compact }) {
+  const [expandedStages, setExpandedStages] = useState(new Set());
+
+  const toggleStage = (name) => {
+    setExpandedStages(prev => {
+      const next = new Set(prev);
+      if (next.has(name)) {
+        next.delete(name);
+      } else {
+        next.add(name);
+      }
+      return next;
+    });
+  };
+
   if (!summary || summary.error || !summary.configured) {
     const errorMsg = summary?.error || (!summary?.configured ? 'GitHub ist nicht konfiguriert' : null);
     return (
@@ -141,23 +192,39 @@ function GitHubPipeline({ summary, compact, onNavigate }) {
             <GitPullRequest size={12} />
             {summary.open_prs} PRs
           </span>
+          {summary.last_sync && (
+            <span className="pipeline-sync-time">
+              {new Date(summary.last_sync).toLocaleTimeString('de-DE')}
+            </span>
+          )}
         </div>
       </div>
 
       <div className="pipeline-board">
         {(summary.pipeline || []).map((stage) => {
-          const config = STAGE_CONFIG[stage.name] || STAGE_CONFIG['Backlog'];
+          const config = STAGE_CONFIG[stage.name] || { color: 'var(--text-tertiary)', icon: Clock };
           const StageIcon = config.icon;
           const items = [...(stage.issues || []), ...(stage.pull_requests || [])];
-          const displayItems = compact ? items.slice(0, 4) : items;
+          const isExpanded = expandedStages.has(stage.name);
+          const maxItems = compact ? 2 : DEFAULT_VISIBLE;
+          const displayItems = isExpanded ? items : items.slice(0, maxItems);
+          const remaining = items.length - maxItems;
 
           return (
             <div key={stage.name} className="pipeline-column">
-              <div className="pipeline-column-header">
+              <button
+                className="pipeline-column-header"
+                onClick={() => toggleStage(stage.name)}
+              >
                 <StageIcon size={14} style={{ color: config.color }} />
                 <span className="column-name">{stage.name}</span>
                 <span className="column-count">{items.length}</span>
-              </div>
+                {items.length > maxItems && (
+                  isExpanded ?
+                    <ChevronDown size={12} className="column-chevron" /> :
+                    <ChevronRight size={12} className="column-chevron" />
+                )}
+              </button>
               <div className="pipeline-column-cards">
                 {displayItems.map((item) =>
                   'head_branch' in item ? (
@@ -166,8 +233,13 @@ function GitHubPipeline({ summary, compact, onNavigate }) {
                     <IssueCard key={`issue-${item.number}`} issue={item} />
                   )
                 )}
-                {compact && items.length > 4 && (
-                  <div className="pipeline-more">+{items.length - 4} weitere</div>
+                {!isExpanded && remaining > 0 && (
+                  <button
+                    className="pipeline-more"
+                    onClick={() => toggleStage(stage.name)}
+                  >
+                    +{remaining} weitere
+                  </button>
                 )}
               </div>
             </div>

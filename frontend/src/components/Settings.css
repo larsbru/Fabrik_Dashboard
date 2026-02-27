@@ -432,9 +432,27 @@
     flex-direction: row;
     min-width: unset;
     overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .settings-sidebar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .settings-tab {
+    white-space: nowrap;
+    min-height: 44px;
+  }
+
+  .settings-section {
+    padding: var(--space-md);
   }
 
   .form-row {
     flex-direction: column;
+  }
+
+  .section-title {
+    font-size: 15px;
   }
 }

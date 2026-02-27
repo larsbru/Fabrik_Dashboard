@@ -22,6 +22,11 @@
   padding-top: var(--space-md);
 }
 
+/* Sidebar overlay (mobile) */
+.sidebar-overlay {
+  display: none;
+}
+
 /* Dashboard View */
 .dashboard-view {
   display: flex;
@@ -60,5 +65,36 @@
 @media (max-width: 1400px) {
   .dashboard-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .app {
+    flex-direction: column;
+  }
+
+  .sidebar-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 99;
+    animation: fadeIn 0.2s ease-out;
+  }
+
+  .content-area {
+    padding: var(--space-md);
+    padding-top: var(--space-sm);
+  }
+
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+    gap: var(--space-md);
+  }
+}
+
+@media (max-width: 480px) {
+  .content-area {
+    padding: var(--space-sm);
   }
 }

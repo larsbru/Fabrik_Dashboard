@@ -17,6 +17,7 @@
 
 .pipeline-stats {
   display: flex;
+  align-items: center;
   gap: var(--space-sm);
 }
 
@@ -40,6 +41,12 @@
   color: var(--accent-purple);
 }
 
+.pipeline-sync-time {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  font-family: 'SF Mono', 'Fira Code', monospace;
+}
+
 .pipeline-loading {
   padding: var(--space-2xl);
   border-radius: var(--radius-lg);
@@ -51,12 +58,12 @@
 /* Board */
 .pipeline-board {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   gap: var(--space-sm);
 }
 
 .pipeline-container.compact .pipeline-board {
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(3, 1fr);
 }
 
 .pipeline-column {
@@ -70,13 +77,29 @@
   align-items: center;
   gap: 6px;
   padding: var(--space-sm);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--text-secondary);
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  font-family: var(--font-family);
+  border-radius: var(--radius-sm);
+  transition: background 0.15s ease;
+  min-height: 44px;
+}
+
+.pipeline-column-header:hover {
+  background: var(--glass-bg);
 }
 
 .column-name {
   flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .column-count {
@@ -86,6 +109,11 @@
   background: rgba(255, 255, 255, 0.04);
   padding: 2px 8px;
   border-radius: var(--radius-full);
+}
+
+.column-chevron {
+  color: var(--text-tertiary);
+  flex-shrink: 0;
 }
 
 .pipeline-column-cards {
@@ -154,6 +182,34 @@
   padding: 2px 6px;
   border-radius: var(--radius-full);
   border: 1px solid;
+}
+
+/* Assignment & retry labels */
+.pipeline-assignment-labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.assignment-badge {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 9px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: var(--radius-full);
+  background: rgba(100, 210, 255, 0.1);
+  color: var(--accent-cyan);
+}
+
+.retry-badge {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: var(--radius-full);
+  background: rgba(255, 159, 10, 0.1);
+  color: var(--accent-orange);
 }
 
 .pr-branch {
@@ -228,10 +284,48 @@
   font-size: 11px;
   color: var(--text-tertiary);
   padding: var(--space-sm);
+  background: none;
+  border: 1px dashed var(--border-subtle);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-family: var(--font-family);
+  transition: all 0.15s ease;
 }
 
-@media (max-width: 1000px) {
+.pipeline-more:hover {
+  background: var(--glass-bg);
+  color: var(--text-secondary);
+  border-color: var(--border-default);
+}
+
+@media (max-width: 1200px) {
   .pipeline-board {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .pipeline-board {
+    display: flex;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    gap: var(--space-sm);
+    padding-bottom: var(--space-sm);
+  }
+
+  .pipeline-container.compact .pipeline-board {
+    grid-template-columns: unset;
+    display: flex;
+  }
+
+  .pipeline-column {
+    min-width: 220px;
+    flex-shrink: 0;
+  }
+
+  .pipeline-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-sm);
   }
 }

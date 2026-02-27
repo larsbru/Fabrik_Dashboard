@@ -291,22 +291,59 @@ class SSHManager:
         return services
 
     def _collect_agents(self, client: paramiko.SSHClient) -> list[AgentInfo]:
-        """Detect running Fabrik agents."""
+        """Detect running containers with detailed stats."""
         agents = []
-        # Look for agent processes or containers
-        containers = self._exec(
+        # Collect docker ps info (names, status, command)
+        ps_output = self._exec(
             client,
-            "docker ps --format '{{.Names}}|{{.Status}}' 2>/dev/null || echo ''"
+            "docker ps --format '{{.Names}}|{{.Status}}|{{.Command}}' 2>/dev/null || echo ''"
         )
-        if containers:
-            for line in containers.strip().split("\n"):
+        # Collect docker stats (cpu, memory)
+        stats_output = self._exec(
+            client,
+            "docker stats --no-stream --format '{{.Names}}|{{.CPUPerc}}|{{.MemUsage}}|{{.MemPerc}}' 2>/dev/null || echo ''"
+        )
+
+        # Parse stats into a lookup dict
+        stats_map: dict[str, dict] = {}
+        if stats_output:
+            for line in stats_output.strip().split("\n"):
                 if line.strip() and "|" in line:
-                    name, status = line.split("|", 1)
+                    parts = line.split("|")
+                    if len(parts) >= 4:
+                        name = parts[0].strip()
+                        try:
+                            cpu_pct = float(parts[1].strip().rstrip("%"))
+                        except (ValueError, IndexError):
+                            cpu_pct = 0.0
+                        mem_usage = parts[2].strip()
+                        try:
+                            mem_pct = float(parts[3].strip().rstrip("%"))
+                        except (ValueError, IndexError):
+                            mem_pct = 0.0
+                        stats_map[name] = {
+                            "cpu_percent": cpu_pct,
+                            "memory_usage": mem_usage,
+                            "memory_percent": mem_pct,
+                        }
+
+        if ps_output:
+            for line in ps_output.strip().split("\n"):
+                if line.strip() and "|" in line:
+                    parts = line.split("|", 2)
+                    name = parts[0].strip()
+                    status = parts[1].strip() if len(parts) > 1 else ""
+                    command = parts[2].strip().strip('"') if len(parts) > 2 else ""
+                    st = stats_map.get(name, {})
                     agents.append(AgentInfo(
-                        name=name.strip(),
+                        name=name,
                         role="container",
                         status="running" if "Up" in status else "stopped",
                         last_activity=datetime.utcnow(),
+                        cpu_percent=st.get("cpu_percent", 0.0),
+                        memory_usage=st.get("memory_usage", ""),
+                        memory_percent=st.get("memory_percent", 0.0),
+                        command=command[:80],
                     ))
         return agents
 

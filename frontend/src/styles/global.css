@@ -139,3 +139,23 @@ html, body {
 .pulse {
   animation: pulse 2s ease-in-out infinite;
 }
+
+/* Mobile touch targets & global responsive */
+@media (max-width: 768px) {
+  html, body {
+    overflow: auto;
+  }
+
+  button, a, [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+@media (max-width: 480px) {
+  :root {
+    --space-lg: 16px;
+    --space-xl: 24px;
+    --space-2xl: 32px;
+  }
+}
