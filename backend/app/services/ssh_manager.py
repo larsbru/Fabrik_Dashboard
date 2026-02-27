@@ -30,6 +30,14 @@ class SSHManager:
         self._key_path = settings.ssh_key_path
         self._connections: dict[str, paramiko.SSHClient] = {}
 
+    def apply_settings(self, key_path: str | None = None):
+        """Update SSH settings at runtime."""
+        if key_path:
+            self._key_path = key_path
+            logger.info("SSH key path updated to %s", key_path)
+        # Close existing connections so they reconnect with new settings
+        self.close_all()
+
     def _get_client(self, machine: Machine) -> Optional[paramiko.SSHClient]:
         """Create or reuse an SSH connection to a machine."""
         try:
@@ -86,7 +94,10 @@ class SSHManager:
         """Synchronous metric collection."""
         client = self._get_client(machine)
         if not client:
-            machine.status = MachineStatus.OFFLINE
+            # SSH unavailable — preserve ping-based ONLINE status.
+            # Only mark OFFLINE if the machine wasn't pingable either.
+            if machine.status == MachineStatus.UNKNOWN:
+                machine.status = MachineStatus.OFFLINE
             machine.last_scan = datetime.utcnow()
             return machine
 

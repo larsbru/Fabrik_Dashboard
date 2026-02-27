@@ -44,6 +44,10 @@ github_router.github_service = github_service
 ws_router.ws_manager = ws_manager
 alerts_router.alert_service = alert_service
 settings_router.settings_service = settings_service
+settings_router.scanner = scanner
+settings_router.github_service = github_service
+settings_router.ssh_manager = ssh_manager
+settings_router.scheduler = scheduler
 
 
 @asynccontextmanager
@@ -70,7 +74,7 @@ app = FastAPI(
 # CORS - allow local frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

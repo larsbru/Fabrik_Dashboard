@@ -58,6 +58,14 @@ class NetworkScanner:
         except Exception as e:
             logger.error("Error loading config: %s", e)
 
+    def apply_settings(self, subnet: str | None = None):
+        """Update scanner settings at runtime."""
+        if subnet:
+            self.subnet = subnet
+            logger.info("Network subnet updated to %s", subnet)
+        # Reload machine config from YAML
+        self._load_config()
+
     async def ping_host(self, ip: str, timeout: float = 1.0) -> bool:
         """Check if a host is reachable via ping."""
         try:
@@ -121,12 +129,12 @@ class NetworkScanner:
                 new_machines.append(machine)
                 logger.info("Discovered new machine: %s", ip)
 
-        # Update last_seen for all discovered IPs
+        # Update last_seen for all discovered IPs (pingable = at least ONLINE)
         now = datetime.utcnow()
         for ip in discovered_ips:
             if ip in self.machines:
                 self.machines[ip].last_seen = now
-                if self.machines[ip].status == MachineStatus.UNKNOWN:
+                if self.machines[ip].status in (MachineStatus.UNKNOWN, MachineStatus.OFFLINE):
                     self.machines[ip].status = MachineStatus.ONLINE
 
         # Mark unreachable machines as offline

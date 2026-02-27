@@ -14,7 +14,15 @@ if [ ! -f ".env" ]; then
     exit 1
 fi
 
-# Build and start containers
+# macOS: Docker Desktop doesn't support network_mode: host properly.
+# The backend container can't reach the 192.168.44.x LAN.
+# -> Run backend natively so it has direct LAN access.
+if [ "$(uname)" = "Darwin" ]; then
+    echo "macOS erkannt — starte im Dev-Modus (Backend nativ, Frontend in Docker)."
+    exec "$PROJECT_DIR/scripts/start-dev.sh"
+fi
+
+# Linux: full Docker setup works fine
 docker compose up -d --build
 
 echo ""

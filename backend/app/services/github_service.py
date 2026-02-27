@@ -37,6 +37,25 @@ class GitHubService:
         self._pull_requests: list[PullRequest] = []
         self._summary: Optional[GitHubSummary] = None
         self._last_sync: Optional[datetime] = None
+        self._last_error: Optional[str] = None
+        self._configured: bool = bool(self.owner and self.repo and self.token)
+
+    def apply_settings(self, owner: str | None = None, repo: str | None = None, token: str | None = None):
+        """Update GitHub settings at runtime and clear cached data."""
+        if owner is not None:
+            self.owner = owner
+        if repo is not None:
+            self.repo = repo
+        if token is not None:
+            self.token = token
+        # Clear cached data so next sync fetches fresh
+        self._issues = []
+        self._pull_requests = []
+        self._summary = None
+        self._last_sync = None
+        self._last_error = None
+        self._configured = bool(self.owner and self.repo and self.token)
+        logger.info("GitHub settings updated: %s/%s (configured=%s)", self.owner, self.repo, self._configured)
 
     @property
     def _headers(self) -> dict:
@@ -55,9 +74,18 @@ class GitHubService:
     async def sync(self):
         """Fetch all issues and PRs from GitHub."""
         if not self.owner or not self.repo:
+            self._last_error = "GitHub Owner/Repo nicht konfiguriert"
+            self._configured = False
             logger.warning("GitHub owner/repo not configured")
             return
 
+        if not self.token:
+            self._last_error = "GitHub Token nicht konfiguriert"
+            self._configured = False
+            logger.warning("GitHub token not configured")
+            return
+
+        self._configured = True
         try:
             async with httpx.AsyncClient(timeout=30) as client:
                 issues_task = self._fetch_issues(client)
@@ -69,6 +97,7 @@ class GitHubService:
                 )
 
             self._last_sync = datetime.utcnow()
+            self._last_error = None
             self._build_summary()
             logger.info(
                 "GitHub sync complete: %d issues, %d PRs",
@@ -76,6 +105,7 @@ class GitHubService:
                 len(self._pull_requests),
             )
         except Exception as e:
+            self._last_error = str(e)
             logger.error("GitHub sync error: %s", e)
 
     async def _fetch_issues(self, client: httpx.AsyncClient) -> list[Issue]:
@@ -287,10 +317,24 @@ class GitHubService:
             return [p for p in self._pull_requests if p.state.value == state]
         return self._pull_requests
 
+    def get_status(self) -> dict:
+        """Return current GitHub integration status."""
+        return {
+            "configured": self._configured,
+            "error": self._last_error,
+            "last_sync": self._last_sync.isoformat() if self._last_sync else None,
+            "owner": self.owner,
+            "repo": self.repo,
+            "has_token": bool(self.token),
+        }
+
     def get_summary(self) -> GitHubSummary:
         if not self._summary:
             self._build_summary()
-        return self._summary or GitHubSummary()
+        summary = self._summary or GitHubSummary()
+        summary.error = self._last_error
+        summary.configured = self._configured
+        return summary
 
 
 def _parse_dt(value: Optional[str]) -> Optional[datetime]:

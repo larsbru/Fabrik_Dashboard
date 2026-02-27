@@ -2,13 +2,20 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+import logging
+
+from fastapi import APIRouter
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
+logger = logging.getLogger(__name__)
 
 # Injected by main.py
 settings_service = None
+scanner = None
+github_service = None
+ssh_manager = None
+scheduler = None
 
 
 # ------------------------------------------------------------------
@@ -65,7 +72,14 @@ async def get_network_settings():
 
 @router.put("/network")
 async def update_network_settings(data: NetworkSettingsUpdate):
-    return settings_service.update_network_settings(data.model_dump(exclude_none=True))
+    result = settings_service.update_network_settings(data.model_dump(exclude_none=True))
+    # Apply to running services
+    if scanner:
+        scanner.apply_settings(subnet=data.network_subnet)
+    if scheduler and data.scan_interval:
+        scheduler.update_scan_interval(data.scan_interval)
+    logger.info("Network settings applied at runtime")
+    return result
 
 
 @router.get("/ssh")
@@ -75,7 +89,12 @@ async def get_ssh_settings():
 
 @router.put("/ssh")
 async def update_ssh_settings(data: SSHSettingsUpdate):
-    return settings_service.update_ssh_settings(data.model_dump(exclude_none=True))
+    result = settings_service.update_ssh_settings(data.model_dump(exclude_none=True))
+    # Apply to running services
+    if ssh_manager and data.ssh_key_path:
+        ssh_manager.apply_settings(key_path=data.ssh_key_path)
+    logger.info("SSH settings applied at runtime")
+    return result
 
 
 @router.get("/github")
@@ -85,7 +104,18 @@ async def get_github_settings():
 
 @router.put("/github")
 async def update_github_settings(data: GitHubSettingsUpdate):
-    return settings_service.update_github_settings(data.model_dump(exclude_none=True))
+    result = settings_service.update_github_settings(data.model_dump(exclude_none=True))
+    # Apply to running services using actual stored values (not masked)
+    if github_service:
+        real = settings_service.get_github_settings_raw()
+        github_service.apply_settings(
+            owner=real.get("github_owner"),
+            repo=real.get("github_repo"),
+            token=real.get("github_token"),
+        )
+        await github_service.sync()
+    logger.info("GitHub settings applied at runtime")
+    return result
 
 
 @router.get("/machines")
@@ -95,16 +125,50 @@ async def get_machines():
 
 @router.put("/machines/{ip}")
 async def update_machine(ip: str, data: MachineUpdate):
-    return settings_service.update_machine(ip, data.model_dump(exclude_none=True))
+    result = settings_service.update_machine(ip, data.model_dump(exclude_none=True))
+    # Reload machine config in scanner
+    if scanner:
+        scanner.apply_settings()
+    return result
 
 
 @router.delete("/machines/{ip}")
 async def remove_machine(ip: str):
     machines = settings_service.remove_machine(ip)
+    # Reload machine config in scanner
+    if scanner:
+        scanner.apply_settings()
     return {"status": "removed", "machines": machines}
 
 
 @router.post("/ssh/key")
 async def upload_ssh_key(data: SSHKeyUpload):
     path = settings_service.save_ssh_key(data.key_content, data.filename)
+    # Apply new key to SSH manager
+    if ssh_manager:
+        ssh_manager.apply_settings(key_path=path)
     return {"status": "saved", "path": path}
+
+
+@router.post("/apply")
+async def apply_all_settings():
+    """Manually trigger a full settings reload across all services."""
+    all_settings = settings_service.get_all_settings()
+
+    if scanner:
+        scanner.apply_settings(subnet=all_settings["network"].get("network_subnet"))
+    if scheduler:
+        scheduler.update_scan_interval(all_settings["network"].get("scan_interval", 60))
+    if ssh_manager:
+        ssh_manager.apply_settings(key_path=all_settings["ssh"].get("ssh_key_path"))
+    if github_service:
+        gh = settings_service.get_github_settings_raw()
+        github_service.apply_settings(
+            owner=gh.get("github_owner"),
+            repo=gh.get("github_repo"),
+            token=gh.get("github_token"),
+        )
+        await github_service.sync()
+
+    logger.info("All settings applied at runtime")
+    return {"status": "applied"}

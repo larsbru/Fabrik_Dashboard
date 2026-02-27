@@ -32,13 +32,22 @@ async def get_pull_requests(state: Optional[str] = None):
     return github_service.get_pull_requests(state)
 
 
+@router.get("/status")
+async def get_status():
+    """Return current GitHub integration status."""
+    return github_service.get_status()
+
+
 @router.post("/sync")
 async def trigger_sync():
     """Manually trigger a GitHub sync."""
     await github_service.sync()
     summary = github_service.get_summary()
+    status = github_service.get_status()
     return {
         "status": "synced",
         "issues": summary.open_issues,
         "prs": summary.open_prs,
+        "error": status.get("error"),
+        "configured": status.get("configured"),
     }

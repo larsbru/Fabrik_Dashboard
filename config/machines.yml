@@ -1,64 +1,42 @@
-# Fabrik Network - Machine Configuration
-# ==========================================
-# This file defines known machines and their SSH access credentials.
-# New machines discovered on the network will be added automatically.
-
-defaults:
-  ssh_user: fabrik
-  ssh_port: 22
-  ssh_key: /app/config/ssh_keys/id_rsa
-  check_interval: 30  # seconds
-
-machines:
-  # Mac Studio - Host / Controller
-  - name: "Mac Studio (Host)"
-    ip: "192.168.44.1"
-    role: "controller"
-    ssh_user: fabrik
-    ssh_port: 22
-    tags:
-      - docker-host
-      - dashboard
-    description: "Main Mac Studio running Docker and Dashboard"
-
-  # Example Worker VM
-  # - name: "Worker-01"
-  #   ip: "192.168.44.10"
-  #   role: "agent"
-  #   ssh_user: fabrik
-  #   ssh_port: 22
-  #   tags:
-  #     - code-agent
-  #     - builder
-  #   description: "Code generation and build agent"
-
-# Agent roles define what services to check on each machine
 agent_roles:
-  controller:
-    services:
-      - docker
-      - fabrik-dashboard
-    description: "Main controller node"
   agent:
+    description: Worker agent node
     services:
-      - fabrik-agent
-      - docker
-    description: "Worker agent node"
+    - fabrik-agent
+    - docker
   builder:
+    description: Build and CI agent
     services:
-      - fabrik-builder
-      - docker
-    description: "Build and CI agent"
+    - fabrik-builder
+    - docker
+  controller:
+    description: Main controller node
+    services:
+    - docker
+    - fabrik-dashboard
   reviewer:
+    description: Code review agent
     services:
-      - fabrik-reviewer
-    description: "Code review agent"
-
-# Auto-discovery settings
+    - fabrik-reviewer
 auto_discovery:
+  default_role: agent
   enabled: true
-  subnet: "192.168.44.0/24"
   exclude_ips:
-    - "192.168.44.255"  # Broadcast
-  ssh_fingerprint_check: false  # Set true in production
-  default_role: "agent"
+  - 192.168.44.255
+  ssh_fingerprint_check: false
+  subnet: 192.168.44.0/24
+defaults:
+  check_interval: 30
+  ssh_key: /app/config/ssh_keys/id_rsa
+  ssh_port: 22
+  ssh_user: fabrik
+machines:
+- description: Main Mac Studio running Docker and Dashboard
+  ip: 192.168.44.1
+  name: Mac Studio (Host)
+  role: controller
+  ssh_port: 22
+  ssh_user: fabrik
+  tags:
+  - docker-host
+  - dashboard

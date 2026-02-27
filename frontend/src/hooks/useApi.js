@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+const API_URL = process.env.REACT_APP_API_URL || '';
 
 export function useApi() {
   const [loading, setLoading] = useState(false);
@@ -30,5 +30,16 @@ export function useApi() {
     [request]
   );
 
-  return { get, post, loading };
+  const put = useCallback(
+    (path, body) =>
+      request(path, { method: 'PUT', body: body ? JSON.stringify(body) : undefined }),
+    [request]
+  );
+
+  const del = useCallback(
+    (path) => request(path, { method: 'DELETE' }),
+    [request]
+  );
+
+  return { get, post, put, del, loading };
 }

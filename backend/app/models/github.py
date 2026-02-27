@@ -95,3 +95,5 @@ class GitHubSummary(BaseModel):
     pipeline: list[PipelineStage] = Field(default_factory=list)
     recent_activity: list[dict] = Field(default_factory=list)
     last_sync: Optional[datetime] = None
+    error: Optional[str] = None
+    configured: bool = True

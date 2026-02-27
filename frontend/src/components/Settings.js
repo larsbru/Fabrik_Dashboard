@@ -7,7 +7,7 @@ import { useApi } from '../hooks/useApi';
 import './Settings.css';
 
 function Settings() {
-  const { get, post } = useApi();
+  const { get, post, put, del } = useApi();
   const [activeSection, setActiveSection] = useState('network');
   const [settings, setSettings] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -52,69 +52,45 @@ function Settings() {
 
   const handleSave = async (section, endpoint, data) => {
     setSaving(true);
-    try {
-      const res = await fetch(`http://localhost:8000/api/settings/${endpoint}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-      if (res.ok) {
-        showSaveStatus('success', `${section} gespeichert`);
-        fetchSettings();
-      } else {
-        showSaveStatus('error', `Fehler beim Speichern`);
-      }
-    } catch {
-      showSaveStatus('error', 'Verbindung zum Server fehlgeschlagen');
+    const result = await put(`/api/settings/${endpoint}`, data);
+    if (result) {
+      showSaveStatus('success', `${section} gespeichert`);
+      fetchSettings();
+    } else {
+      showSaveStatus('error', `Fehler beim Speichern`);
     }
     setSaving(false);
   };
 
   const handleAddMachine = async () => {
     if (!newMachine.ip) return;
-    try {
-      const res = await fetch(`http://localhost:8000/api/settings/machines/${newMachine.ip}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newMachine),
-      });
-      if (res.ok) {
-        showSaveStatus('success', `Maschine ${newMachine.ip} hinzugefuegt`);
-        setNewMachine({ ip: '', name: '', role: 'agent', ssh_user: '', ssh_port: 22, description: '' });
-        fetchSettings();
-      }
-    } catch {
+    const result = await put(`/api/settings/machines/${newMachine.ip}`, newMachine);
+    if (result) {
+      showSaveStatus('success', `Maschine ${newMachine.ip} hinzugefuegt`);
+      setNewMachine({ ip: '', name: '', role: 'agent', ssh_user: '', ssh_port: 22, description: '' });
+      fetchSettings();
+    } else {
       showSaveStatus('error', 'Fehler beim Hinzufuegen');
     }
   };
 
   const handleRemoveMachine = async (ip) => {
-    try {
-      const res = await fetch(`http://localhost:8000/api/settings/machines/${ip}`, {
-        method: 'DELETE',
-      });
-      if (res.ok) {
-        showSaveStatus('success', `Maschine ${ip} entfernt`);
-        fetchSettings();
-      }
-    } catch {
+    const result = await del(`/api/settings/machines/${ip}`);
+    if (result) {
+      showSaveStatus('success', `Maschine ${ip} entfernt`);
+      fetchSettings();
+    } else {
       showSaveStatus('error', 'Fehler beim Entfernen');
     }
   };
 
   const handleUploadSSHKey = async () => {
     if (!sshKeyContent.trim()) return;
-    try {
-      const res = await fetch('http://localhost:8000/api/settings/ssh/key', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key_content: sshKeyContent, filename: 'id_rsa' }),
-      });
-      if (res.ok) {
-        showSaveStatus('success', 'SSH Key gespeichert');
-        setSSHKeyContent('');
-      }
-    } catch {
+    const result = await post('/api/settings/ssh/key', { key_content: sshKeyContent, filename: 'id_rsa' });
+    if (result) {
+      showSaveStatus('success', 'SSH Key gespeichert');
+      setSSHKeyContent('');
+    } else {
       showSaveStatus('error', 'Fehler beim Speichern des SSH Keys');
     }
   };

@@ -1,5 +1,5 @@
 import React from 'react';
-import { GitPullRequest, CircleDot, CheckCircle2, Clock, MessageSquare, User, Tag } from 'lucide-react';
+import { GitPullRequest, CircleDot, CheckCircle2, Clock, MessageSquare, User, Tag, AlertTriangle, Settings } from 'lucide-react';
 import './GitHubPipeline.css';
 
 const STAGE_CONFIG = {
@@ -103,15 +103,26 @@ function PRCard({ pr }) {
   );
 }
 
-function GitHubPipeline({ summary, compact }) {
-  if (!summary) {
+function GitHubPipeline({ summary, compact, onNavigate }) {
+  if (!summary || summary.error || !summary.configured) {
+    const errorMsg = summary?.error || (!summary?.configured ? 'GitHub ist nicht konfiguriert' : null);
     return (
       <div className="pipeline-container">
         <div className="pipeline-header">
           <h3>GitHub Pipeline</h3>
         </div>
         <div className="pipeline-loading glass">
-          <p>Warte auf GitHub-Daten...</p>
+          {errorMsg ? (
+            <div style={{ textAlign: 'center' }}>
+              <AlertTriangle size={24} style={{ color: 'var(--accent-orange)', marginBottom: 8 }} />
+              <p style={{ color: 'var(--accent-orange)', marginBottom: 4 }}>{errorMsg}</p>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                Konfiguriere GitHub unter Einstellungen &rarr; GitHub (Token, Owner, Repo).
+              </p>
+            </div>
+          ) : (
+            <p>Warte auf GitHub-Daten...</p>
+          )}
         </div>
       </div>
     );

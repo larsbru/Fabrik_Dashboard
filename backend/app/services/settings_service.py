@@ -14,9 +14,10 @@ from ..config import settings
 
 logger = logging.getLogger(__name__)
 
-# Resolve .env file path relative to project root
+# Resolve .env file path: Docker mounts it at /app/.env, otherwise use project root
+_DOCKER_ENV = Path("/app/.env")
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
-_ENV_FILE = _PROJECT_ROOT / ".env"
+_ENV_FILE = _DOCKER_ENV if _DOCKER_ENV.exists() else _PROJECT_ROOT / ".env"
 
 
 class SettingsService:
@@ -105,12 +106,30 @@ class SettingsService:
             "default_ssh_port": defaults.get("ssh_port", 22),
         }
 
-    def get_github_settings(self) -> dict:
+    @staticmethod
+    def _mask_token(token: str) -> str:
+        """Mask a token for safe display: show first 4 and last 4 chars."""
+        if not token or len(token) <= 8:
+            return "****" if token else ""
+        return f"{token[:4]}{'*' * (len(token) - 8)}{token[-4:]}"
+
+    def get_github_settings_raw(self) -> dict:
+        """Return raw GitHub settings (including real token) for internal use."""
         env = self._read_env()
         return {
             "github_token": env.get("GITHUB_TOKEN", settings.github_token),
             "github_owner": env.get("GITHUB_OWNER", settings.github_owner),
             "github_repo": env.get("GITHUB_REPO", settings.github_repo),
+        }
+
+    def get_github_settings(self) -> dict:
+        """Return GitHub settings with masked token for API responses."""
+        raw = self.get_github_settings_raw()
+        return {
+            "github_token": self._mask_token(raw["github_token"]),
+            "github_owner": raw["github_owner"],
+            "github_repo": raw["github_repo"],
+            "has_token": bool(raw["github_token"]),
         }
 
     def get_machines(self) -> list[dict]:
@@ -163,7 +182,10 @@ class SettingsService:
     def update_github_settings(self, data: dict) -> dict:
         env = self._read_env()
         if "github_token" in data:
-            env["GITHUB_TOKEN"] = data["github_token"]
+            token = data["github_token"]
+            # Don't overwrite if the user sent back a masked value
+            if token and "****" not in token:
+                env["GITHUB_TOKEN"] = token
         if "github_owner" in data:
             env["GITHUB_OWNER"] = data["github_owner"]
         if "github_repo" in data:
