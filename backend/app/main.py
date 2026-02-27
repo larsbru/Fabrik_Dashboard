@@ -12,11 +12,13 @@ from .config import settings
 from .routers import alerts as alerts_router
 from .routers import github as github_router
 from .routers import machines as machines_router
+from .routers import settings as settings_router
 from .routers import websocket as ws_router
 from .services.alerts import AlertService
 from .services.github_service import GitHubService
 from .services.network_scanner import NetworkScanner
 from .services.scheduler import BackgroundScheduler
+from .services.settings_service import SettingsService
 from .services.ssh_manager import SSHManager
 from .services.websocket_manager import WebSocketManager
 
@@ -32,6 +34,7 @@ ssh_manager = SSHManager()
 github_service = GitHubService()
 ws_manager = WebSocketManager()
 alert_service = AlertService()
+settings_service = SettingsService()
 scheduler = BackgroundScheduler(scanner, ssh_manager, github_service, ws_manager, alert_service)
 
 # Inject services into routers
@@ -40,6 +43,7 @@ machines_router.ssh_manager = ssh_manager
 github_router.github_service = github_service
 ws_router.ws_manager = ws_manager
 alerts_router.alert_service = alert_service
+settings_router.settings_service = settings_service
 
 
 @asynccontextmanager
@@ -77,6 +81,7 @@ app.include_router(machines_router.router)
 app.include_router(github_router.router)
 app.include_router(alerts_router.router)
 app.include_router(ws_router.router)
+app.include_router(settings_router.router)
 
 
 @app.get("/health")

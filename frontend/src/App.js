@@ -8,6 +8,7 @@ import MachineGrid from './components/MachineGrid';
 import MachineDetail from './components/MachineDetail';
 import GitHubPipeline from './components/GitHubPipeline';
 import GitHubActivity from './components/GitHubActivity';
+import Settings from './components/Settings';
 import './styles/App.css';
 
 const VIEWS = {
@@ -125,6 +126,8 @@ function App() {
             <GitHubActivity summary={githubSummary} />
           </div>
         );
+      case VIEWS.SETTINGS:
+        return <Settings />;
       default:
         return null;
     }

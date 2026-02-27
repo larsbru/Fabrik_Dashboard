@@ -6,6 +6,7 @@ const NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'machines', label: 'Maschinen', icon: Server },
   { id: 'github', label: 'GitHub', icon: GitBranch },
+  { id: 'settings', label: 'Einstellungen', icon: Settings },
 ];
 
 function Sidebar({ currentView, onNavigate, machines = [] }) {
