@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Optional
 
 from fastapi import APIRouter
+from pydantic import BaseModel
 
 from ..models.github import GitHubSummary, Issue, PullRequest
 
@@ -12,6 +13,10 @@ router = APIRouter(prefix="/api/github", tags=["github"])
 
 # Injected by main.py
 github_service = None
+
+
+class UATConfirmRequest(BaseModel):
+    issue_number: int
 
 
 @router.get("/summary", response_model=GitHubSummary)
@@ -51,3 +56,10 @@ async def trigger_sync():
         "error": status.get("error"),
         "configured": status.get("configured"),
     }
+
+
+@router.post("/uat-confirm")
+async def confirm_uat(req: UATConfirmRequest):
+    """Confirm UAT for an issue: remove awaiting-uat, close the issue."""
+    result = await github_service.confirm_uat(req.issue_number)
+    return result

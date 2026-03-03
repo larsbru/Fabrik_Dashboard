@@ -261,14 +261,15 @@ class GitHubService:
 
         return prs
 
-    # Pipeline label definitions (order matters for stage columns)
+    # Pipeline label definitions – reversed: CEO's action items first
     PIPELINE_LABELS = [
-        "agent:ready",
-        "agent:running",
-        "needs:qa",
-        "ready-for-qa",
-        "agent:qa",
         "awaiting-uat",
+        "ready-for-qa",
+        "agent:ready",
+        "assigned:agent0",
+        "assigned:dispatcher-01",
+        "assigned:dev-agent-01",
+        "assigned:qa-agent-01",
     ]
 
     def _parse_assigned_machine(self, labels: list) -> str | None:
@@ -290,21 +291,17 @@ class GitHubService:
         for label_name in self.PIPELINE_LABELS:
             stages[label_name] = PipelineStage(name=label_name)
 
-        # Classify issues into stages by label
-        for issue in self._issues:
+        # Classify open issues into stages by label
+        for issue in open_issues:
             label_names = [l.name.lower() for l in issue.labels]
-            # Parse assigned machine
             issue.assigned_machine = self._parse_assigned_machine(issue.labels)
-            placed = False
             for pipeline_label in self.PIPELINE_LABELS:
                 if pipeline_label in label_names:
                     stages[pipeline_label].issues.append(issue)
-                    placed = True
                     break
-            # Items with no pipeline label are not shown (untracked)
 
-        # Classify PRs into stages by label
-        for pr in self._pull_requests:
+        # Classify open PRs into stages by label
+        for pr in open_prs:
             label_names = [l.name.lower() for l in pr.labels]
             pr.assigned_machine = self._parse_assigned_machine(pr.labels)
             for pipeline_label in self.PIPELINE_LABELS:
@@ -353,6 +350,38 @@ class GitHubService:
         summary.error = self._last_error
         summary.configured = self._configured
         return summary
+
+    async def confirm_uat(self, issue_number: int) -> dict:
+        """Confirm UAT: remove awaiting-uat label, close the issue."""
+        if not self._configured:
+            return {"error": "GitHub not configured"}
+
+        base = self._repo_url
+
+        async with httpx.AsyncClient() as client:
+            # Remove awaiting-uat label
+            try:
+                await client.delete(
+                    f"{base}/issues/{issue_number}/labels/awaiting-uat",
+                    headers=self._headers,
+                )
+            except Exception as e:
+                logger.warning("Failed to remove awaiting-uat label from #%d: %s", issue_number, e)
+
+            # Close the issue
+            resp = await client.patch(
+                f"{base}/issues/{issue_number}",
+                headers=self._headers,
+                json={"state": "closed"},
+            )
+
+            if resp.status_code == 200:
+                logger.info("UAT confirmed: Issue #%d closed", issue_number)
+                await self.sync()
+                return {"status": "confirmed", "issue_number": issue_number}
+            else:
+                logger.error("Failed to close issue #%d: %s", issue_number, resp.text)
+                return {"error": f"Failed to close issue: {resp.status_code}", "issue_number": issue_number}
 
 
 def _parse_dt(value: Optional[str]) -> Optional[datetime]:

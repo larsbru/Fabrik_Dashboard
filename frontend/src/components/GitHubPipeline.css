@@ -136,6 +136,61 @@
   cursor: default;
 }
 
+.pipeline-card-link {
+  cursor: pointer;
+  text-decoration: none;
+  color: inherit;
+}
+
+.pipeline-card-link-inner {
+  text-decoration: none;
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pipeline-card-link:hover,
+.pipeline-card:has(.pipeline-card-link-inner):hover {
+  background: var(--glass-hover);
+  border-color: var(--accent-blue);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(10, 132, 255, 0.15);
+}
+
+/* UAT cards */
+.uat-card {
+  border-left: 2px solid var(--accent-green);
+}
+
+.uat-confirm-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 12px;
+  margin-top: 4px;
+  border: 1px solid rgba(48, 209, 88, 0.3);
+  border-radius: var(--radius-sm);
+  background: rgba(48, 209, 88, 0.08);
+  color: var(--accent-green);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--font-family);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.uat-confirm-btn:hover {
+  background: rgba(48, 209, 88, 0.2);
+  border-color: var(--accent-green);
+}
+
+.uat-confirm-btn:active {
+  transform: scale(0.97);
+}
+
 .pipeline-card:hover {
   background: var(--glass-hover);
   border-color: var(--border-strong);
@@ -307,20 +362,19 @@
 @media (max-width: 768px) {
   .pipeline-board {
     display: flex;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    gap: var(--space-sm);
-    padding-bottom: var(--space-sm);
+    flex-direction: column;
+    gap: var(--space-md);
   }
 
   .pipeline-container.compact .pipeline-board {
     grid-template-columns: unset;
     display: flex;
+    flex-direction: column;
   }
 
   .pipeline-column {
-    min-width: 220px;
-    flex-shrink: 0;
+    min-width: unset;
+    flex-shrink: unset;
   }
 
   .pipeline-header {

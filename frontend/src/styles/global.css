@@ -143,7 +143,8 @@ html, body {
 /* Mobile touch targets & global responsive */
 @media (max-width: 768px) {
   html, body {
-    overflow: auto;
+    overflow-x: hidden;
+    overflow-y: auto;
   }
 
   button, a, [role="button"] {

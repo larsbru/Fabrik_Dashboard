@@ -55,9 +55,15 @@ class SSHManager:
             client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
             try:
-                pkey = paramiko.RSAKey.from_private_key_file(self._key_path)
+                pkey = paramiko.Ed25519Key.from_private_key_file(self._key_path)
             except Exception:
-                pkey = None
+                try:
+                    pkey = paramiko.RSAKey.from_private_key_file(self._key_path)
+                except Exception:
+                    try:
+                        pkey = paramiko.ECDSAKey.from_private_key_file(self._key_path)
+                    except Exception:
+                        pkey = None
 
             client.connect(
                 hostname=machine.ip,

@@ -35,19 +35,6 @@
   animation: fadeIn 0.4s ease-out;
 }
 
-.dashboard-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-lg);
-  min-height: 0;
-}
-
-.dashboard-left,
-.dashboard-right {
-  min-height: 0;
-  overflow-y: auto;
-}
-
 /* Machines View */
 .machines-view {
   animation: fadeIn 0.4s ease-out;
@@ -63,14 +50,13 @@
 
 /* Responsive */
 @media (max-width: 1400px) {
-  .dashboard-grid {
-    grid-template-columns: 1fr;
-  }
+  /* Single column already in dashboard-view */
 }
 
 @media (max-width: 768px) {
   .app {
     flex-direction: column;
+    overflow-x: hidden;
   }
 
   .sidebar-overlay {
@@ -85,16 +71,13 @@
   .content-area {
     padding: var(--space-md);
     padding-top: var(--space-sm);
-  }
-
-  .dashboard-grid {
-    grid-template-columns: 1fr;
-    gap: var(--space-md);
+    overflow-x: hidden;
   }
 }
 
 @media (max-width: 480px) {
   .content-area {
     padding: var(--space-sm);
+    overflow-x: hidden;
   }
 }

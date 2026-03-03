@@ -1,42 +1,76 @@
-agent_roles:
-  agent:
-    description: Worker agent node
-    services:
-    - fabrik-agent
-    - docker
-  builder:
-    description: Build and CI agent
-    services:
-    - fabrik-builder
-    - docker
-  controller:
-    description: Main controller node
-    services:
-    - docker
-    - fabrik-dashboard
-  reviewer:
-    description: Code review agent
-    services:
-    - fabrik-reviewer
-auto_discovery:
-  default_role: agent
-  enabled: true
-  exclude_ips:
-  - 192.168.44.255
-  ssh_fingerprint_check: false
-  subnet: 192.168.44.0/24
 defaults:
-  check_interval: 30
+  ssh_user: fabriksys
+  ssh_port: 22
   ssh_key: /app/config/ssh_keys/id_rsa
-  ssh_port: 22
-  ssh_user: fabrik
+  check_interval: 30
+
 machines:
-- description: Main Mac Studio running Docker and Dashboard
-  ip: 192.168.44.1
-  name: Mac Studio (Host)
+- name: ai-brain-01
+  ip: 192.168.44.10
+  description: Control Plane – Agent0, Ollama, Dashboard
   role: controller
-  ssh_port: 22
-  ssh_user: fabrik
-  tags:
-  - docker-host
-  - dashboard
+  ssh_user: larsbruckschen
+  tags: [docker-host, dashboard, agent0, ollama]
+
+- name: ci-runner-01
+  ip: 192.168.44.20
+  description: Self-Hosted CI Runner
+  role: builder
+  tags: [ci, github-actions]
+
+- name: staging-01
+  ip: 192.168.44.30
+  description: Staging Runtime
+  role: staging
+  tags: [docker-host, staging]
+
+- name: qa-agent-01
+  ip: 192.168.44.40
+  description: QA Pull Agent
+  role: reviewer
+  tags: [docker-host, qa-agent]
+
+- name: dispatcher-01
+  ip: 192.168.44.70
+  description: Policy Engine / State Machine
+  role: orchestrator
+  tags: [docker-host, dispatcher]
+
+- name: openwebui-01
+  ip: 192.168.44.100
+  description: OpenWebUI
+  role: agent
+  tags: [docker-host, openwebui]
+
+- name: dev-agent-01
+  ip: 192.168.44.101
+  description: Dev Pull Agent (Coding)
+  role: agent
+  tags: [docker-host, dev-agent]
+
+auto_discovery:
+  enabled: false
+  subnet: 192.168.44.0/24
+  exclude_ips: [192.168.44.255]
+  default_role: agent
+  ssh_fingerprint_check: false
+
+agent_roles:
+  controller:
+    description: Control Plane (Agent0, Dashboard)
+    services: [docker, fabrik-dashboard, agent0]
+  builder:
+    description: CI Runner
+    services: [github-actions-runner]
+  staging:
+    description: Staging Environment
+    services: [docker]
+  reviewer:
+    description: QA Agent
+    services: [docker, qa-agent]
+  orchestrator:
+    description: Dispatcher / State Machine
+    services: [docker, dispatcher]
+  agent:
+    description: Worker Agent
+    services: [docker]

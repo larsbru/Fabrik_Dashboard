@@ -1,11 +1,12 @@
 import React from 'react';
-import { LayoutDashboard, Server, GitBranch, Settings, Cpu, Wifi, WifiOff } from 'lucide-react';
+import { LayoutDashboard, Server, GitBranch, Settings, Cpu, Wifi, WifiOff, Inbox } from 'lucide-react';
 import './Sidebar.css';
 
 const NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'machines', label: 'Maschinen', icon: Server },
   { id: 'github', label: 'GitHub', icon: GitBranch },
+  { id: 'inbox', label: 'Inbox & Backlog', icon: Inbox },
   { id: 'settings', label: 'Einstellungen', icon: Settings },
 ];
 

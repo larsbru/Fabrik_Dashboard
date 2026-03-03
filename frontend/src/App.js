@@ -9,6 +9,7 @@ import MachineGrid from './components/MachineGrid';
 import MachineDetail from './components/MachineDetail';
 import GitHubPipeline from './components/GitHubPipeline';
 import GitHubActivity from './components/GitHubActivity';
+import InboxBacklog from './components/InboxBacklog';
 import Settings from './components/Settings';
 import './styles/App.css';
 
@@ -16,6 +17,7 @@ const VIEWS = {
   DASHBOARD: 'dashboard',
   MACHINES: 'machines',
   GITHUB: 'github',
+  INBOX: 'inbox',
   SETTINGS: 'settings',
 };
 
@@ -98,21 +100,14 @@ function App() {
       case VIEWS.DASHBOARD:
         return (
           <div className="dashboard-view">
-            <NetworkOverview summary={networkSummary} machines={machines} />
-            <div className="dashboard-grid">
-              <div className="dashboard-left">
-                <MachineGrid
-                  machines={machines}
-                  onSelect={setSelectedMachine}
-                  onRefresh={handleRefreshMachine}
-                  githubSummary={githubSummary}
-                  compact
-                />
-              </div>
-              <div className="dashboard-right">
-                <GitHubPipeline summary={githubSummary} compact />
-              </div>
-            </div>
+            <GitHubPipeline summary={githubSummary} config={config} />
+            <MachineGrid
+              machines={machines}
+              onSelect={setSelectedMachine}
+              onRefresh={handleRefreshMachine}
+              githubSummary={githubSummary}
+              compact
+            />
           </div>
         );
       case VIEWS.MACHINES:
@@ -138,10 +133,12 @@ function App() {
       case VIEWS.GITHUB:
         return (
           <div className="github-view">
-            <GitHubPipeline summary={githubSummary} />
-            <GitHubActivity summary={githubSummary} />
+            <GitHubPipeline summary={githubSummary} config={config} />
+            <GitHubActivity summary={githubSummary} config={config} />
           </div>
         );
+      case VIEWS.INBOX:
+        return <InboxBacklog />;
       case VIEWS.SETTINGS:
         return <Settings />;
       default:

@@ -30,7 +30,7 @@ class PRReviewState(str, Enum):
 class Label(BaseModel):
     name: str
     color: str = "000000"
-    description: str = ""
+    description: str | None = ""
 
 
 class GitHubUser(BaseModel):

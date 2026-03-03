@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
-import { GitPullRequest, CircleDot, CheckCircle2, Clock, MessageSquare, User, AlertTriangle, ChevronDown, ChevronRight, Cpu } from 'lucide-react';
+import { GitPullRequest, CircleDot, CheckCircle2, Clock, MessageSquare, User, AlertTriangle, ChevronDown, ChevronRight, Cpu, Check } from 'lucide-react';
 import './GitHubPipeline.css';
 
 const STAGE_CONFIG = {
-  'agent:ready': { color: 'var(--accent-blue)', icon: Clock },
-  'agent:running': { color: 'var(--accent-cyan)', icon: CircleDot },
-  'needs:qa': { color: 'var(--accent-orange)', icon: AlertTriangle },
-  'ready-for-qa': { color: 'var(--accent-yellow)', icon: CheckCircle2 },
-  'agent:qa': { color: 'var(--accent-purple)', icon: CircleDot },
   'awaiting-uat': { color: 'var(--accent-green)', icon: CheckCircle2 },
+  'ready-for-qa': { color: 'var(--accent-yellow)', icon: Clock },
+  'agent:ready': { color: 'var(--accent-blue)', icon: Clock },
+  'assigned:agent0': { color: 'var(--accent-cyan)', icon: Cpu },
+  'assigned:dispatcher-01': { color: 'var(--accent-orange)', icon: Cpu },
+  'assigned:dev-agent-01': { color: 'var(--accent-purple)', icon: Cpu },
+  'assigned:qa-agent-01': { color: 'var(--accent-yellow)', icon: Cpu },
 };
 
 const DEFAULT_VISIBLE = 3;
@@ -36,9 +37,24 @@ function AssignmentLabel({ labels }) {
   );
 }
 
-function IssueCard({ issue }) {
+function getGitHubUrl(config, number, type) {
+  const owner = config?.github_owner || 'larsbru';
+  const repo = config?.github_repo || 'Archyveon_Core';
+  const repoPath = repo.includes('/') ? repo : `${owner}/${repo}`;
+  const suffix = type === 'pr' ? 'pull' : 'issues';
+  return `https://github.com/${repoPath}/${suffix}/${number}`;
+}
+
+function IssueCard({ issue, config, stageName, onConfirmUAT }) {
+  const isUAT = stageName === 'awaiting-uat';
   return (
-    <div className="pipeline-card">
+    <div className={`pipeline-card ${isUAT ? 'uat-card' : ''}`}>
+      <a
+        href={getGitHubUrl(config, issue.number, 'issue')}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="pipeline-card-link-inner"
+      >
       <div className="pipeline-card-header">
         <CircleDot
           size={14}
@@ -84,18 +100,34 @@ function IssueCard({ issue }) {
           </div>
         )}
       </div>
+      </a>
+      {isUAT && onConfirmUAT && (
+        <button
+          className="uat-confirm-btn"
+          onClick={(e) => { e.stopPropagation(); onConfirmUAT(issue.number); }}
+          title="UAT bestätigen – Issue schließen"
+        >
+          <Check size={14} />
+          <span>UAT bestätigen</span>
+        </button>
+      )}
     </div>
   );
 }
 
-function PRCard({ pr }) {
+function PRCard({ pr, config }) {
   const stateColor =
     pr.state === 'merged' ? 'var(--accent-purple)' :
     pr.state === 'open' ? 'var(--accent-green)' :
     'var(--accent-red)';
 
   return (
-    <div className="pipeline-card pr-card">
+    <a
+      href={getGitHubUrl(config, pr.number, 'pr')}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="pipeline-card pr-card pipeline-card-link"
+    >
       <div className="pipeline-card-header">
         <GitPullRequest size={14} style={{ color: stateColor }} />
         <span className="pipeline-card-number">#{pr.number}</span>
@@ -136,12 +168,33 @@ function PRCard({ pr }) {
           <span className="pr-deletions">-{pr.deletions}</span>
         </div>
       </div>
-    </div>
+    </a>
   );
 }
 
-function GitHubPipeline({ summary, compact }) {
+function GitHubPipeline({ summary, compact, config }) {
   const [expandedStages, setExpandedStages] = useState(new Set());
+  const [confirmingUAT, setConfirmingUAT] = useState(null);
+
+  const handleConfirmUAT = async (issueNumber) => {
+    if (confirmingUAT) return;
+    setConfirmingUAT(issueNumber);
+    try {
+      const resp = await fetch('/api/github/uat-confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ issue_number: issueNumber }),
+      });
+      const data = await resp.json();
+      if (data.error) {
+        alert(`Fehler: ${data.error}`);
+      }
+    } catch (err) {
+      alert(`Fehler: ${err.message}`);
+    } finally {
+      setConfirmingUAT(null);
+    }
+  };
 
   const toggleStage = (name) => {
     setExpandedStages(prev => {
@@ -228,9 +281,15 @@ function GitHubPipeline({ summary, compact }) {
               <div className="pipeline-column-cards">
                 {displayItems.map((item) =>
                   'head_branch' in item ? (
-                    <PRCard key={`pr-${item.number}`} pr={item} />
+                    <PRCard key={`pr-${item.number}`} pr={item} config={config} />
                   ) : (
-                    <IssueCard key={`issue-${item.number}`} issue={item} />
+                    <IssueCard
+                      key={`issue-${item.number}`}
+                      issue={item}
+                      config={config}
+                      stageName={stage.name}
+                      onConfirmUAT={handleConfirmUAT}
+                    />
                   )
                 )}
                 {!isExpanded && remaining > 0 && (

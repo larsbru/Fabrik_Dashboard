@@ -10,6 +10,8 @@ services:
       - ./config:/app/config
       - ./config/ssh_keys:/root/.ssh:ro
       - ./.env:/app/.env
+      - /Users/larsbruckschen/DevFabrik:/app/fabrik/DevFabrik:ro
+      - /Users/larsbruckschen/Documents/DevFabrik:/app/fabrik/Documents/DevFabrik:ro
     environment:
       - GITHUB_TOKEN=${GITHUB_TOKEN}
       - GITHUB_REPO=${GITHUB_REPO:-Archyveon_Core}
