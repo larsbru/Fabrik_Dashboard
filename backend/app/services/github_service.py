@@ -261,15 +261,20 @@ class GitHubService:
 
         return prs
 
-    # Pipeline label definitions – reversed: CEO's action items first
+    # Pipeline label definitions – CEO's action items first, then active stages, then blocked
     PIPELINE_LABELS = [
         "awaiting-uat",
+        "blocked",
         "ready-for-qa",
         "agent:ready",
         "assigned:agent0",
         "assigned:dispatcher-01",
         "assigned:dev-agent-01",
         "assigned:qa-agent-01",
+        "status:failed-ci",
+        "status:failed-qa",
+        "status:failed-merge",
+        "status:failed-deploy",
     ]
 
     def _parse_assigned_machine(self, labels: list) -> str | None:

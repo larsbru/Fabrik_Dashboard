@@ -4,12 +4,17 @@ import './GitHubPipeline.css';
 
 const STAGE_CONFIG = {
   'awaiting-uat': { color: 'var(--accent-green)', icon: CheckCircle2 },
+  'blocked': { color: 'var(--accent-red)', icon: AlertTriangle },
   'ready-for-qa': { color: 'var(--accent-yellow)', icon: Clock },
   'agent:ready': { color: 'var(--accent-blue)', icon: Clock },
   'assigned:agent0': { color: 'var(--accent-cyan)', icon: Cpu },
   'assigned:dispatcher-01': { color: 'var(--accent-orange)', icon: Cpu },
   'assigned:dev-agent-01': { color: 'var(--accent-purple)', icon: Cpu },
   'assigned:qa-agent-01': { color: 'var(--accent-yellow)', icon: Cpu },
+  'status:failed-ci': { color: 'var(--accent-red)', icon: AlertTriangle },
+  'status:failed-qa': { color: 'var(--accent-red)', icon: AlertTriangle },
+  'status:failed-merge': { color: 'var(--accent-red)', icon: AlertTriangle },
+  'status:failed-deploy': { color: 'var(--accent-red)', icon: AlertTriangle },
 };
 
 const DEFAULT_VISIBLE = 3;
