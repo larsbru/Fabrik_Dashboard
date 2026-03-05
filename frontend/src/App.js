@@ -32,20 +32,25 @@ function App() {
   const [config, setConfig] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(null);
+  const [repos, setRepos] = useState([]);
+  const [selectedRepo, setSelectedRepo] = useState(null); // null = default
 
   // Initial data fetch
   const fetchData = useCallback(async () => {
-    const [machinesData, summaryData, githubData, configData] = await Promise.all([
+    const repoParam = selectedRepo ? `?repo=${encodeURIComponent(selectedRepo)}` : '';
+    const [machinesData, summaryData, githubData, configData, reposData] = await Promise.all([
       get('/api/machines'),
       get('/api/machines/summary'),
-      get('/api/github/summary'),
+      get(`/api/github/summary${repoParam}`),
       get('/api/config'),
+      get('/api/repos'),
     ]);
     if (machinesData) setMachines(machinesData);
     if (summaryData) setNetworkSummary(summaryData);
     if (githubData) setGithubSummary(githubData);
     if (configData) setConfig(configData);
-  }, [get]);
+    if (reposData) setRepos(reposData);
+  }, [get, selectedRepo]);
 
   useEffect(() => {
     fetchData();
@@ -133,6 +138,21 @@ function App() {
       case VIEWS.GITHUB:
         return (
           <div className="github-view">
+            {repos.length > 1 && (
+              <div className="repo-selector">
+                <span className="repo-selector-label">Repo:</span>
+                <select
+                  className="repo-selector-select"
+                  value={selectedRepo || ''}
+                  onChange={e => setSelectedRepo(e.target.value || null)}
+                >
+                  <option value="">Alle / Standard</option>
+                  {repos.filter(r => r.status === 'active').map(r => (
+                    <option key={r.github} value={r.github}>{r.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <GitHubPipeline summary={githubSummary} config={config} />
             <GitHubActivity summary={githubSummary} config={config} />
           </div>

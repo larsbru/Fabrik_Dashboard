@@ -81,3 +81,39 @@
     overflow-x: hidden;
   }
 }
+
+/* Repo Selector (B40 – Multi-Repo Filter) */
+.repo-selector {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--surface-glass);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  backdrop-filter: blur(10px);
+}
+
+.repo-selector-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.repo-selector-select {
+  background: var(--surface-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  padding: 4px 10px;
+  cursor: pointer;
+  outline: none;
+}
+
+.repo-selector-select:focus {
+  border-color: var(--accent-blue);
+}
