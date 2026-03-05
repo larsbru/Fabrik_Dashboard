@@ -1,14 +1,14 @@
 import React from 'react';
-import { LayoutDashboard, Server, GitBranch, Settings, Cpu, Wifi, WifiOff, Inbox, Zap } from 'lucide-react';
+import { LayoutDashboard, Server, GitBranch, Settings, Cpu, Wifi, WifiOff, Inbox, Zap, Activity, Heart } from 'lucide-react';
 import './Sidebar.css';
 
 const NAV_ITEMS = [
-  { id: 'pipeline', label: 'Pipeline', icon: Zap },
-  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { id: 'machines', label: 'Maschinen', icon: Server },
-  { id: 'github', label: 'GitHub', icon: GitBranch },
-  { id: 'inbox', label: 'Inbox & Backlog', icon: Inbox },
-  { id: 'settings', label: 'Einstellungen', icon: Settings },
+  { id: 'pipeline',      label: 'Pipeline',       icon: Zap },
+  { id: 'inbox',         label: 'Backlog + Inbox', icon: Inbox },
+  { id: 'staging',       label: 'Staging',         icon: Server },
+  { id: 'fabrik-health', label: 'Fabrik-Health',   icon: Heart },
+  { id: 'dashboard',     label: 'Dashboard',       icon: LayoutDashboard },
+  { id: 'settings',      label: 'Einstellungen',   icon: Settings },
 ];
 
 function Sidebar({ currentView, onNavigate, machines = [], isOpen, onClose }) {

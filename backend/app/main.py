@@ -18,6 +18,8 @@ from .routers import repos as repos_router
 from .routers import settings as settings_router
 from .routers import websocket as ws_router
 from .routers import pipeline as pipeline_router
+from .routers import staging as staging_router
+from .routers import health as health_router
 from .services.alerts import AlertService
 from .services.github_service import GitHubService
 from .services.network_scanner import NetworkScanner
@@ -97,6 +99,8 @@ app.include_router(settings_router.router)
 app.include_router(repos_router.router)
 app.include_router(gateway_router.router)
 app.include_router(pipeline_router.router)
+app.include_router(staging_router.router)
+app.include_router(health_router.router)
 
 
 @app.get("/health")

@@ -13,15 +13,19 @@ import GatewayMetrics from './components/GatewayMetrics';
 import InboxBacklog from './components/InboxBacklog';
 import PipelineTab from './components/PipelineTab';
 import BacklogInboxTab from './components/BacklogInboxTab';
+import StagingTab from './components/StagingTab';
+import FabrikHealthTab from './components/FabrikHealthTab';
 import Settings from './components/Settings';
 import './styles/App.css';
 
 const VIEWS = {
   PIPELINE: 'pipeline',
+  INBOX: 'inbox',
+  STAGING: 'staging',
+  FABRIK_HEALTH: 'fabrik-health',
   DASHBOARD: 'dashboard',
   MACHINES: 'machines',
   GITHUB: 'github',
-  INBOX: 'inbox',
   SETTINGS: 'settings',
 };
 
@@ -166,6 +170,10 @@ function App() {
         );
       case VIEWS.INBOX:
         return <BacklogInboxTab />;
+      case VIEWS.STAGING:
+        return <StagingTab />;
+      case VIEWS.FABRIK_HEALTH:
+        return <FabrikHealthTab />;
       case VIEWS.SETTINGS:
         return <Settings />;
       default:
