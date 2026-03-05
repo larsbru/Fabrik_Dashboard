@@ -382,8 +382,9 @@ function BacklogInboxTab() {
 
   const backlogSections = overview?.backlog?.sections || [];
   const stats = overview?.stats || {};
-  const pendingIdeas  = ideas.filter(i => i.status === 'neu' || i.status === 'analysiert');
-  const decidedIdeas  = ideas.filter(i => ['approved','rejected','deferred'].includes(i.status));
+  const pendingIdeas   = ideas.filter(i => i.status === 'neu' || i.status === 'analysiert');
+  const approvedIdeas  = ideas.filter(i => i.status === 'approved');
+  const otherIdeas     = ideas.filter(i => i.status === 'rejected' || i.status === 'deferred');
 
   const tabs = [
     { id: 'ideas',   label: 'Ideen',   count: pendingIdeas.length, icon: Zap },
