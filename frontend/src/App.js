@@ -11,10 +11,12 @@ import GitHubPipeline from './components/GitHubPipeline';
 import GitHubActivity from './components/GitHubActivity';
 import GatewayMetrics from './components/GatewayMetrics';
 import InboxBacklog from './components/InboxBacklog';
+import PipelineTab from './components/PipelineTab';
 import Settings from './components/Settings';
 import './styles/App.css';
 
 const VIEWS = {
+  PIPELINE: 'pipeline',
   DASHBOARD: 'dashboard',
   MACHINES: 'machines',
   GITHUB: 'github',
@@ -25,7 +27,7 @@ const VIEWS = {
 function App() {
   const { isConnected, lastMessage } = useWebSocket();
   const { get, post } = useApi();
-  const [currentView, setCurrentView] = useState(VIEWS.DASHBOARD);
+  const [currentView, setCurrentView] = useState(VIEWS.PIPELINE);
   const [machines, setMachines] = useState([]);
   const [networkSummary, setNetworkSummary] = useState(null);
   const [githubSummary, setGithubSummary] = useState(null);
@@ -103,6 +105,8 @@ function App() {
 
   const renderContent = () => {
     switch (currentView) {
+      case VIEWS.PIPELINE:
+        return <PipelineTab />;
       case VIEWS.DASHBOARD:
         return (
           <div className="dashboard-view">

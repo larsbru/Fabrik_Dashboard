@@ -1,8 +1,9 @@
 import React from 'react';
-import { LayoutDashboard, Server, GitBranch, Settings, Cpu, Wifi, WifiOff, Inbox } from 'lucide-react';
+import { LayoutDashboard, Server, GitBranch, Settings, Cpu, Wifi, WifiOff, Inbox, Zap } from 'lucide-react';
 import './Sidebar.css';
 
 const NAV_ITEMS = [
+  { id: 'pipeline', label: 'Pipeline', icon: Zap },
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'machines', label: 'Maschinen', icon: Server },
   { id: 'github', label: 'GitHub', icon: GitBranch },
