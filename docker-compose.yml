@@ -12,6 +12,7 @@ services:
       - ./.env:/app/.env
       - /Users/larsbruckschen/DevFabrik:/app/fabrik/DevFabrik:ro
       - /Users/larsbruckschen/Documents/DevFabrik:/app/fabrik/Documents/DevFabrik:ro
+      - /Users/larsbruckschen/agent0/logs/agent0.out.log:/app/agent0/agent0.out.log:ro
     environment:
       - GITHUB_TOKEN=${GITHUB_TOKEN}
       - GITHUB_REPO=${GITHUB_REPO:-Archyveon_Core}

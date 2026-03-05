@@ -36,7 +36,8 @@ AGENTS = [
         "id": "agent0",
         "name": "Agent0",
         "ip": "192.168.44.10",
-        "log_cmd": "tail -n 30 /Users/larsbruckschen/agent0/agent.log 2>/dev/null || journalctl -u agent0 -n 30 --no-pager 2>/dev/null || echo 'NO_LOG'",
+        "log_cmd": None,  # Kein SSH – Log via Volume-Mount gelesen
+        "local_log": "/app/agent0/agent0.out.log",
         "role": "Planung & Governance",
         "color": "#8b5cf6",
     },
@@ -76,6 +77,12 @@ AGENTS = [
 
 # Welche Log-Muster bedeuten was (Priorität: erstes Match gewinnt)
 ACTIVITY_PATTERNS = [
+    # Agent0-spezifische Patterns (Prefix: "agent0: ")
+    (r"agent0:.*Plan.*#\d+", "📋 Plant Issue", "busy"),
+    (r"agent0:.*Labels.*assigned:", "✅ Dispatched", "busy"),
+    (r"agent0:.*Governance|agent0:.*FL|agent0:.*ADR|agent0:.*Feature-Map", "📚 Governance-Write", "busy"),
+    (r"agent0:.*Gefunden.*Issues", "🔍 Pollt Issues", "idle"),
+    (r"agent0:.*repos.yaml", "⏳ Wartet auf Issues", "idle"),
     # Coding / LLM aktiv
     (r"(call_opus|call_sonnet|Tier 2|claude.*running|Opus|Sonnet|Tier-2)", "🤖 LLM aktiv (Tier 2)", "active"),
     (r"(ollama|Tier 1|qwen|generating)", "⚙️ LLM aktiv (Tier 1)", "active"),
@@ -91,6 +98,7 @@ ACTIVITY_PATTERNS = [
     # Warten / Polling
     (r"(No issues found|Keine.*Issues|nothing to do|idle|polling|Waiting)", "⏳ Wartet auf Issues", "idle"),
     (r"(Poll.*interval|sleeping|sleep \d+)", "💤 Schläft (Poll-Intervall)", "idle"),
+    (r"(Loaded.*repos|repos.yaml|active repos)", "⏳ Pollt (idle)", "idle"),
     # Fehler
     (r"(ERROR|Exception|Traceback|failed|Failed|FAILED)", "❌ Fehler", "error"),
     # Retry
@@ -124,10 +132,31 @@ def _extract_issue_nr(log_lines: list[str]) -> str | None:
     return None
 
 
+def _local_logs(agent: dict) -> tuple[bool, list[str]]:
+    """Liest Log-Zeilen direkt aus gemounteter Datei (kein SSH)."""
+    log_path = agent.get("local_log")
+    if not log_path:
+        return False, []
+    try:
+        import os
+        if not os.path.exists(log_path):
+            logger.debug("Lokale Log-Datei nicht gefunden: %s", log_path)
+            return False, []
+        with open(log_path, "r", errors="replace") as f:
+            lines = f.readlines()
+        last_lines = [l.rstrip() for l in lines[-30:] if l.strip()]
+        return bool(last_lines), last_lines
+    except Exception as e:
+        logger.debug("Lokaler Log-Fehler für %s: %s", agent["id"], e)
+        return False, []
+
+
 def _ssh_logs(agent: dict) -> tuple[bool, list[str]]:
     """Holt Log-Zeilen via SSH. Gibt (success, lines) zurück."""
     ip = agent["ip"]
-    cmd = agent["log_cmd"]
+    cmd = agent.get("log_cmd")
+    if not cmd:
+        return False, []
     try:
         result = subprocess.run(
             SSH_OPTS + [f"{SSH_USER}@{ip}", cmd],
@@ -147,7 +176,11 @@ def _ssh_logs(agent: dict) -> tuple[bool, list[str]]:
 
 def _get_agent_status(agent: dict) -> dict:
     """Vollständiger Status-Check für einen Agent."""
-    success, lines = _ssh_logs(agent)
+    # Agent0: Log via Volume-Mount, alle anderen via SSH
+    if agent.get("local_log"):
+        success, lines = _local_logs(agent)
+    else:
+        success, lines = _ssh_logs(agent)
 
     if not success or not lines:
         return {

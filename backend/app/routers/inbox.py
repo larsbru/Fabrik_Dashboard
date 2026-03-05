@@ -397,44 +397,66 @@ async def reset_idea(idea_id: str):
 _reanalyze_running: dict[str, dict] = {}  # idea_id → {status, started_at, log}
 
 
+def _container_to_host_path(container_path: Path) -> str:
+    """Übersetzt Container-Pfad (/app/fabrik/...) in Host-Pfad (/Users/larsbruckschen/...)."""
+    s = str(container_path)
+    s = s.replace("/app/fabrik/DevFabrik/", "/Users/larsbruckschen/DevFabrik/")
+    s = s.replace("/app/fabrik/Documents/DevFabrik/", "/Users/larsbruckschen/Documents/DevFabrik/")
+    return s
+
+
 def _run_reanalyze(idea_id: str, extracted_path: Path, draft_path: Path):
-    """Startet analyze_inbox.py als Subprocess (läuft im Hintergrund-Thread)."""
+    """Startet analyze_inbox.py via SSH auf Host (claude CLI läuft nur dort)."""
     _reanalyze_running[idea_id] = {
         "status": "running",
         "started_at": datetime.utcnow().isoformat(),
         "log": [],
     }
-    # _meta.status = "pending" in draft setzen
-    try:
-        data = _safe_yaml(draft_path)
-        data.setdefault("_meta", {})["status"] = "pending-reanalyze"
-        with open(draft_path, "w", encoding="utf-8") as f:
-            yaml.dump(data, f, allow_unicode=True, default_flow_style=False)
-    except Exception as e:
-        logger.warning("Could not set pending status for %s: %s", idea_id, e)
+    # Hinweis: DevFabrik-Volume ist read-only → draft.yaml nur via SSH (Host) schreibbar.
+    # Das analyze_inbox.py Script schreibt den finalen Status selbst.
 
-    analyze_script = Path("/app/fabrik/DevFabrik/management/config/scripts/analyze_inbox.py")
+    # Pfade auf Host übersetzen (Volume: /app/fabrik/ → /Users/larsbruckschen/)
+    host_script    = "/Users/larsbruckschen/DevFabrik/management/config/scripts/analyze_inbox.py"
+    host_extracted = _container_to_host_path(extracted_path)
+    host_draft     = _container_to_host_path(draft_path)
+    # Homebrew-Python + claude CLI PATH explizit setzen (SSH-Login nutzt /usr/bin/python3 ohne Pakete)
+    ssh_cmd = (
+        f"export PATH=/opt/homebrew/bin:/Users/larsbruckschen/.local/bin:/usr/local/bin:$PATH && "
+        f"/opt/homebrew/bin/python3 {host_script} {host_extracted} {host_draft}"
+    )
+
     logs = []
     try:
         result = subprocess.run(
-            ["python3", str(analyze_script), str(extracted_path), str(draft_path)],
-            capture_output=True, text=True, timeout=360,
+            [
+                "ssh",
+                "-i", "/root/.ssh/id_rsa",
+                "-o", "StrictHostKeyChecking=no",
+                "-o", "UserKnownHostsFile=/dev/null",
+                "-o", "IdentitiesOnly=yes",
+                "-o", "ConnectTimeout=10",
+                "larsbruckschen@192.168.44.10",
+                ssh_cmd,
+            ],
+            capture_output=True, text=True, timeout=390,
+            input="",
         )
-        logs = (result.stdout + result.stderr).splitlines()[-20:]
+        logs = (result.stdout + result.stderr).splitlines()[-30:]
         if result.returncode == 0:
             _reanalyze_running[idea_id]["status"] = "done"
-            logger.info("Reanalyze done for %s", idea_id)
+            logger.info("Reanalyze done for %s (via SSH)", idea_id)
         else:
             _reanalyze_running[idea_id]["status"] = "error"
-            logger.warning("Reanalyze failed for %s (rc=%s)", idea_id, result.returncode)
+            logger.warning("Reanalyze failed for %s via SSH (rc=%s): %s",
+                           idea_id, result.returncode, result.stderr[:300])
     except subprocess.TimeoutExpired:
         _reanalyze_running[idea_id]["status"] = "timeout"
-        logs = ["Timeout nach 360s"]
-        logger.warning("Reanalyze timeout for %s", idea_id)
+        logs = ["SSH-Timeout nach 390s"]
+        logger.warning("Reanalyze SSH timeout for %s", idea_id)
     except Exception as e:
         _reanalyze_running[idea_id]["status"] = "error"
         logs = [str(e)]
-        logger.error("Reanalyze error for %s: %s", idea_id, e)
+        logger.error("Reanalyze SSH error for %s: %s", idea_id, e)
 
     _reanalyze_running[idea_id]["log"] = logs
     _reanalyze_running[idea_id]["finished_at"] = datetime.utcnow().isoformat()
