@@ -5,6 +5,7 @@ import './Sidebar.css';
 const NAV_ITEMS = [
   { id: 'pipeline',      label: 'Pipeline',        icon: Zap },
   { id: 'inbox',         label: 'Ideen & Backlog', icon: Inbox },
+  { id: 'agents',        label: 'Agent-Status',    icon: Activity },
   { id: 'staging',       label: 'Staging',          icon: Server },
   { id: 'fabrik-health', label: 'Fabrik-Health',    icon: Heart },
   { id: 'dashboard',     label: 'Dashboard',        icon: LayoutDashboard },

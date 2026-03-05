@@ -141,9 +141,32 @@ function IdeaCard({ idea, onAction, actionLoading }) {
   const [expanded, setExpanded] = useState(false);
   const [rejectText, setRejectText] = useState('');
   const [showReject, setShowReject] = useState(false);
+  const [reanalyzeStatus, setReanalyzeStatus] = useState(null); // null|'running'|'done'|'error'|'timeout'
+  const { post, get } = useApi();
   const cfg = STATUS_CONFIG[idea.status] || STATUS_CONFIG['neu'];
   const isPending = idea.status === 'neu' || idea.status === 'analysiert';
   const prio = PRIO_STYLE[idea.prioritaet] || PRIO_STYLE['mittel'];
+
+  const handleReanalyze = async (e) => {
+    e.stopPropagation();
+    setReanalyzeStatus('running');
+    const res = await post(`/api/inbox/ideas/${idea.id}/reanalyze`, {});
+    if (!res || res.error) {
+      setReanalyzeStatus('error');
+      return;
+    }
+    // Poll bis fertig
+    const poll = setInterval(async () => {
+      const s = await get(`/api/inbox/ideas/${idea.id}/reanalyze-status`);
+      if (!s || s.status === 'running' || s.status === 'already_running') return;
+      clearInterval(poll);
+      setReanalyzeStatus(s.status === 'done' ? 'done' : 'error');
+      // Nach kurzer Pause: onAction('refresh') triggern
+      setTimeout(() => { onAction(idea.id, '_refresh', {}); setReanalyzeStatus(null); }, 1500);
+    }, 3000);
+    // Spätestens nach 5min aufhören
+    setTimeout(() => { clearInterval(poll); if (reanalyzeStatus === 'running') setReanalyzeStatus('timeout'); }, 310000);
+  };
 
   return (
     <div style={{
@@ -226,13 +249,39 @@ function IdeaCard({ idea, onAction, actionLoading }) {
             )}
           </div>
 
-          {/* Analyse-Warnung */}
+          {/* Analyse-Warnung + Re-Analyse-Button */}
           {!idea.analyse_ok && (
-            <div style={{ fontSize: '0.72rem', color: '#fbbf24', marginBottom: 10,
-              padding: '6px 10px', background: '#fbbf2411', borderRadius: 5,
-              border: '1px solid #fbbf2433' }}>
-              ⏳ Neu-Analyse via Opus läuft — Zusammenfassung noch nicht verfügbar.
-              Refresh in ~2 Min.
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: '0.72rem', color: '#fbbf24', marginBottom: 6,
+                padding: '6px 10px', background: '#fbbf2411', borderRadius: 5,
+                border: '1px solid #fbbf2433' }}>
+                ⏳ Analyse unvollständig oder fehlgeschlagen.
+              </div>
+              <button
+                onClick={handleReanalyze}
+                disabled={reanalyzeStatus === 'running'}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  fontSize: '0.75rem', fontWeight: 600,
+                  color: reanalyzeStatus === 'done' ? '#22c55e' : reanalyzeStatus === 'error' ? '#ef4444' : '#6366f1',
+                  padding: '5px 12px', borderRadius: 5,
+                  border: `1px solid ${reanalyzeStatus === 'done' ? '#22c55e44' : reanalyzeStatus === 'error' ? '#ef444444' : '#6366f144'}`,
+                  background: reanalyzeStatus === 'done' ? '#22c55e11' : reanalyzeStatus === 'error' ? '#ef444411' : '#6366f111',
+                  cursor: reanalyzeStatus === 'running' ? 'wait' : 'pointer',
+                  opacity: reanalyzeStatus === 'running' ? 0.7 : 1,
+                }}
+              >
+                {reanalyzeStatus === 'running' && <RefreshCw size={11} style={{ animation: 'spin 1s linear infinite' }} />}
+                {reanalyzeStatus === 'done' && '✅'}
+                {reanalyzeStatus === 'error' && '❌'}
+                {reanalyzeStatus === 'timeout' && '⏱'}
+                {!reanalyzeStatus && <RefreshCw size={11} />}
+                {reanalyzeStatus === 'running' ? 'Opus analysiert… (bis 5min)' :
+                 reanalyzeStatus === 'done' ? 'Fertig! Wird aktualisiert…' :
+                 reanalyzeStatus === 'error' ? 'Fehler – nochmal versuchen?' :
+                 reanalyzeStatus === 'timeout' ? 'Timeout – nochmal versuchen?' :
+                 'Neu analysieren (Opus)'}
+              </button>
             </div>
           )}
 
@@ -363,6 +412,7 @@ function BacklogInboxTab() {
   }, [get]);
 
   const handleAction = useCallback(async (ideaId, action, body) => {
+    if (action === '_refresh') { await fetchAll(); return; }
     setActionLoading(ideaId);
     try {
       const data = await post(`/api/inbox/ideas/${ideaId}/${action}`, body);

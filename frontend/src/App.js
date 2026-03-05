@@ -15,12 +15,14 @@ import PipelineTab from './components/PipelineTab';
 import BacklogInboxTab from './components/BacklogInboxTab';
 import StagingTab from './components/StagingTab';
 import FabrikHealthTab from './components/FabrikHealthTab';
+import AgentStatusTab from './components/AgentStatusTab';
 import Settings from './components/Settings';
 import './styles/App.css';
 
 const VIEWS = {
   PIPELINE: 'pipeline',
   INBOX: 'inbox',
+  AGENTS: 'agents',
   STAGING: 'staging',
   FABRIK_HEALTH: 'fabrik-health',
   DASHBOARD: 'dashboard',
@@ -169,6 +171,8 @@ function App() {
         );
       case VIEWS.INBOX:
         return <BacklogInboxTab />;
+      case VIEWS.AGENTS:
+        return <AgentStatusTab />;
       case VIEWS.STAGING:
         return <StagingTab />;
       case VIEWS.FABRIK_HEALTH:

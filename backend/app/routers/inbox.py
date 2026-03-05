@@ -5,6 +5,8 @@ from __future__ import annotations
 import logging
 import os
 import re
+import subprocess
+import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -389,3 +391,100 @@ async def reset_idea(idea_id: str):
 
     logger.info("CEO reset decision for %s", idea_id)
     return {"status": "neu", "idea_id": idea_id}
+
+
+# ── Reanalyze-Tracking (in-memory, kein persistenter State) ──────────────────
+_reanalyze_running: dict[str, dict] = {}  # idea_id → {status, started_at, log}
+
+
+def _run_reanalyze(idea_id: str, extracted_path: Path, draft_path: Path):
+    """Startet analyze_inbox.py als Subprocess (läuft im Hintergrund-Thread)."""
+    _reanalyze_running[idea_id] = {
+        "status": "running",
+        "started_at": datetime.utcnow().isoformat(),
+        "log": [],
+    }
+    # _meta.status = "pending" in draft setzen
+    try:
+        data = _safe_yaml(draft_path)
+        data.setdefault("_meta", {})["status"] = "pending-reanalyze"
+        with open(draft_path, "w", encoding="utf-8") as f:
+            yaml.dump(data, f, allow_unicode=True, default_flow_style=False)
+    except Exception as e:
+        logger.warning("Could not set pending status for %s: %s", idea_id, e)
+
+    analyze_script = Path("/app/fabrik/DevFabrik/management/config/scripts/analyze_inbox.py")
+    logs = []
+    try:
+        result = subprocess.run(
+            ["python3", str(analyze_script), str(extracted_path), str(draft_path)],
+            capture_output=True, text=True, timeout=360,
+        )
+        logs = (result.stdout + result.stderr).splitlines()[-20:]
+        if result.returncode == 0:
+            _reanalyze_running[idea_id]["status"] = "done"
+            logger.info("Reanalyze done for %s", idea_id)
+        else:
+            _reanalyze_running[idea_id]["status"] = "error"
+            logger.warning("Reanalyze failed for %s (rc=%s)", idea_id, result.returncode)
+    except subprocess.TimeoutExpired:
+        _reanalyze_running[idea_id]["status"] = "timeout"
+        logs = ["Timeout nach 360s"]
+        logger.warning("Reanalyze timeout for %s", idea_id)
+    except Exception as e:
+        _reanalyze_running[idea_id]["status"] = "error"
+        logs = [str(e)]
+        logger.error("Reanalyze error for %s: %s", idea_id, e)
+
+    _reanalyze_running[idea_id]["log"] = logs
+    _reanalyze_running[idea_id]["finished_at"] = datetime.utcnow().isoformat()
+
+
+@router.post("/ideas/{idea_id}/reanalyze")
+async def reanalyze_idea(idea_id: str):
+    """Re-Analyse einer Idee via Opus (Hintergrund-Subprocess)."""
+    folder = INBOX_PROCESSED_DIR / idea_id
+    draft_path = folder / "draft.yaml"
+    if not draft_path.exists():
+        raise HTTPException(status_code=404, detail=f"Draft für {idea_id} nicht gefunden")
+
+    # Bereits laufend?
+    existing = _reanalyze_running.get(idea_id, {})
+    if existing.get("status") == "running":
+        return {"status": "already_running", "idea_id": idea_id, "started_at": existing.get("started_at")}
+
+    # extracted.md suchen
+    extracted = folder / "extracted.md"
+    if not extracted.exists():
+        # Fallback: irgendeine .md-Datei im Ordner
+        mds = list(folder.glob("*.md"))
+        if not mds:
+            raise HTTPException(status_code=422, detail="Keine extracted.md in diesem Inbox-Ordner")
+        extracted = mds[0]
+
+    logger.info("Starting reanalyze for %s (source: %s)", idea_id, extracted.name)
+
+    t = threading.Thread(target=_run_reanalyze, args=(idea_id, extracted, draft_path), daemon=True)
+    t.start()
+
+    return {"status": "started", "idea_id": idea_id, "source": extracted.name}
+
+
+@router.get("/ideas/{idea_id}/reanalyze-status")
+async def reanalyze_status(idea_id: str):
+    """Status einer laufenden oder abgeschlossenen Re-Analyse."""
+    info = _reanalyze_running.get(idea_id)
+    if not info:
+        # Prüfe ob draft.yaml frisch analysiert (modell != PENDING-OPUS)
+        draft_path = _idea_draft_path(idea_id)
+        if draft_path.exists():
+            data = _safe_yaml(draft_path)
+            meta = data.get("_meta", {})
+            return {
+                "status": "idle",
+                "idea_id": idea_id,
+                "last_model": meta.get("modell"),
+                "last_analysiert_am": meta.get("analysiert_am"),
+            }
+        return {"status": "idle", "idea_id": idea_id}
+    return {"idea_id": idea_id, **info}
