@@ -375,6 +375,50 @@ function IdeaCard({ idea, onAction, actionLoading }) {
 
 // ── Hauptkomponente ──────────────────────────────────────────────────────────
 
+function IdeaSection({ title, icon, color, ideas, defaultOpen, onAction, actionLoading }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div style={{ marginBottom: 10 }}>
+      {/* Sektion-Header */}
+      <div
+        onClick={() => setOpen(v => !v)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px',
+          borderRadius: 6, cursor: 'pointer', userSelect: 'none',
+          background: color + '0d', border: `1px solid ${color}22`,
+          marginBottom: open ? 8 : 0,
+        }}
+      >
+        <span style={{ fontSize: '0.85rem' }}>{icon}</span>
+        <span style={{ fontSize: '0.72rem', fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: '0.05em', flex: 1 }}>
+          {title}
+        </span>
+        <span style={{
+          fontSize: '0.65rem', padding: '1px 7px', borderRadius: 10,
+          background: color + '22', color, fontWeight: 700,
+        }}>
+          {ideas.length}
+        </span>
+        {open
+          ? <ChevronDown size={13} style={{ color, flexShrink: 0 }} />
+          : <ChevronRight size={13} style={{ color: '#4b5563', flexShrink: 0 }} />
+        }
+      </div>
+      {/* Inhalt */}
+      {open && (
+        ideas.length === 0
+          ? <div style={{ padding: '8px 12px', fontSize: '0.72rem', color: '#4b5563',
+              border: '1px dashed #ffffff08', borderRadius: 5 }}>
+              Keine Einträge
+            </div>
+          : ideas.map(idea => (
+              <IdeaCard key={idea.id} idea={idea} onAction={onAction} actionLoading={actionLoading} />
+            ))
+      )}
+    </div>
+  );
+}
+
 function BacklogInboxTab() {
   const { get, post } = useApi();
   const [overview, setOverview] = useState(null);
@@ -430,16 +474,37 @@ function BacklogInboxTab() {
   const handleAction = useCallback(async (ideaId, action, body) => {
     if (action === '_refresh') { await fetchAll(); return; }
     setActionLoading(ideaId);
+
+    // Optimistisches Update: Status sofort im lokalen State ändern
+    const optimisticStatus = action === 'approve' ? 'approved'
+                           : action === 'reject'  ? 'rejected'
+                           : action === 'defer'   ? 'deferred'
+                           : action === 'reset'   ? 'neu'
+                           : null;
+    if (optimisticStatus) {
+      setIdeas(prev => prev.map(i =>
+        i.id === ideaId ? { ...i, status: optimisticStatus } : i
+      ));
+    }
+
     try {
       const data = await post(`/api/inbox/ideas/${ideaId}/${action}`, body);
       if (data?.error) {
         setFeedback({ type: 'error', msg: data.error });
-      } else {
-        setFeedback({ type: 'success', msg: `${action} für ${ideaId} ✓` });
+        // Rollback bei Fehler
         await fetchAll();
+      } else {
+        const actionLabel = action === 'approve' ? '✅ Approved'
+                          : action === 'reject'  ? '❌ Rejected'
+                          : action === 'defer'   ? '⏸ Deferred'
+                          : action === 'reset'   ? '↩ Zurückgesetzt' : action;
+        setFeedback({ type: 'success', msg: actionLabel });
+        // Hintergrund-Sync für B-Nummer etc.
+        setTimeout(() => fetchAll(), 800);
       }
     } catch (e) {
       setFeedback({ type: 'error', msg: e.message });
+      await fetchAll();
     } finally {
       setActionLoading(null);
       setTimeout(() => setFeedback(null), 3000);
@@ -633,40 +698,53 @@ function BacklogInboxTab() {
                     border: '1px dashed #ffffff11', borderRadius: 6,
                   }}>
                     <Zap size={24} style={{ marginBottom: 8, opacity: 0.4 }} />
-                    <div style={{ fontSize: '0.8rem' }}>Keine IDEA-YAMLs in backlog/ideas/</div>
+                    <div style={{ fontSize: '0.8rem' }}>Keine IDEA-YAMLs in inbox_processed/</div>
                   </div>
                 ) : (
                   <>
-                    {pendingIdeas.length > 0 && (
-                      <>
-                        <div style={{ fontSize: '0.7rem', color: '#6b7280', marginBottom: 6, fontWeight: 700 }}>
-                          CEO-REVIEW ({pendingIdeas.length})
-                        </div>
-                        {pendingIdeas.map(idea => (
-                          <IdeaCard key={idea.id} idea={idea} onAction={handleAction} actionLoading={actionLoading} />
-                        ))}
-                      </>
-                    )}
-                    {approvedIdeas.length > 0 && (
-                      <>
-                        <div style={{ fontSize: '0.7rem', color: '#22c55e', margin: '12px 0 6px', fontWeight: 700 }}>
-                          APPROVED ({approvedIdeas.length})
-                        </div>
-                        {approvedIdeas.map(idea => (
-                          <IdeaCard key={idea.id} idea={idea} onAction={handleAction} actionLoading={actionLoading} />
-                        ))}
-                      </>
-                    )}
-                    {otherIdeas.length > 0 && (
-                      <>
-                        <div style={{ fontSize: '0.7rem', color: '#6b7280', margin: '12px 0 6px', fontWeight: 700 }}>
-                          ARCHIV ({otherIdeas.length})
-                        </div>
-                        {otherIdeas.map(idea => (
-                          <IdeaCard key={idea.id} idea={idea} onAction={handleAction} actionLoading={actionLoading} />
-                        ))}
-                      </>
-                    )}
+                    {/* ── CEO-REVIEW Sektion ── */}
+                    <IdeaSection
+                      title="Ausstehend – CEO-Review"
+                      icon="🆕"
+                      color="#6366f1"
+                      ideas={pendingIdeas}
+                      defaultOpen={true}
+                      onAction={handleAction}
+                      actionLoading={actionLoading}
+                    />
+
+                    {/* ── APPROVED Sektion ── */}
+                    <IdeaSection
+                      title="Approved – In Backlog aufnehmen"
+                      icon="✅"
+                      color="#22c55e"
+                      ideas={approvedIdeas}
+                      defaultOpen={approvedIdeas.length > 0}
+                      onAction={handleAction}
+                      actionLoading={actionLoading}
+                    />
+
+                    {/* ── REJECTED Sektion ── */}
+                    <IdeaSection
+                      title="Rejected"
+                      icon="❌"
+                      color="#ef4444"
+                      ideas={ideas.filter(i => i.status === 'rejected')}
+                      defaultOpen={false}
+                      onAction={handleAction}
+                      actionLoading={actionLoading}
+                    />
+
+                    {/* ── DEFERRED Sektion ── */}
+                    <IdeaSection
+                      title="Deferred – Später entscheiden"
+                      icon="⏸"
+                      color="#f59e0b"
+                      ideas={ideas.filter(i => i.status === 'deferred')}
+                      defaultOpen={false}
+                      onAction={handleAction}
+                      actionLoading={actionLoading}
+                    />
                   </>
                 )}
               </div>
