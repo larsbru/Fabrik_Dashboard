@@ -365,3 +365,27 @@ async def defer_idea(idea_id: str, req: DeferRequest):
     logger.info("CEO deferred %s", idea_id)
     return {"status": "deferred", "idea_id": idea_id}
 
+
+
+@router.post("/ideas/{idea_id}/reset")
+async def reset_idea(idea_id: str):
+    """CEO-Aktion: Entscheidung zurücksetzen → status=neu, b_nummer entfernt."""
+    path = _idea_draft_path(idea_id)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail=f"Draft für {idea_id} nicht gefunden")
+    data = _safe_yaml(path)
+
+    # Entscheidungs-Felder entfernen
+    for key in ("status", "b_nummer", "begruendung", "ceo_notiz",
+                "approved_at", "rejected_at", "deferred_at"):
+        data.pop(key, None)
+
+    # _meta.status zurücksetzen
+    if "_meta" in data:
+        data["_meta"]["status"] = "neu"
+
+    with open(path, "w", encoding="utf-8") as f:
+        yaml.dump(data, f, allow_unicode=True, default_flow_style=False)
+
+    logger.info("CEO reset decision for %s", idea_id)
+    return {"status": "neu", "idea_id": idea_id}

@@ -238,12 +238,23 @@ function IdeaCard({ idea, onAction, actionLoading }) {
 
           {/* Bereits entschieden */}
           {!isPending && (
-            <div style={{ fontSize: '0.72rem', padding: '6px 10px', borderRadius: 5,
-              background: cfg.color + '11', color: cfg.color,
-              border: `1px solid ${cfg.color}33`, marginBottom: 8 }}>
-              {cfg.icon} {cfg.label}
-              {idea.b_nummer && ` → ${idea.b_nummer}`}
-              {idea.begruendung && ` — ${idea.begruendung}`}
+            <div style={{ paddingTop: 6, borderTop: '1px solid #ffffff11' }}>
+              <div style={{ fontSize: '0.72rem', padding: '6px 10px', borderRadius: 5,
+                background: cfg.color + '11', color: cfg.color,
+                border: `1px solid ${cfg.color}33`, marginBottom: 8 }}>
+                {cfg.icon} {cfg.label}
+                {idea.b_nummer && ` → ${idea.b_nummer}`}
+                {idea.begruendung && ` — ${idea.begruendung}`}
+              </div>
+              <button onClick={() => onAction(idea.id, 'reset', {})}
+                disabled={actionLoading === idea.id}
+                style={{ display: 'flex', alignItems: 'center', gap: 5,
+                  fontSize: '0.75rem', color: '#6b7280', padding: '5px 12px',
+                  borderRadius: 5, border: '1px solid #ffffff22',
+                  background: 'transparent', cursor: 'pointer',
+                  opacity: actionLoading === idea.id ? 0.5 : 1 }}>
+                ↩ Entscheidung zurücksetzen
+              </button>
             </div>
           )}
 
@@ -320,12 +331,12 @@ function BacklogInboxTab() {
   const [overview, setOverview] = useState(null);
   const [ideas, setIdeas] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('backlog');
+  const [activeTab, setActiveTab] = useState('ideas');
   const [actionLoading, setActionLoading] = useState(null);
   const [feedback, setFeedback] = useState(null);
+  const [archivOpen, setArchivOpen] = useState(false);
 
   const fetchAll = useCallback(async () => {
-    setLoading(true);
     const [ov, id] = await Promise.all([
       get('/api/inbox/overview'),
       get('/api/inbox/ideas'),
@@ -335,7 +346,21 @@ function BacklogInboxTab() {
     setLoading(false);
   }, [get]);
 
+  // Erster Load
   useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  // Auto-Refresh alle 5 Sekunden (kein loading-Flicker — silent update)
+  useEffect(() => {
+    const iv = setInterval(async () => {
+      const [ov, id] = await Promise.all([
+        get('/api/inbox/overview'),
+        get('/api/inbox/ideas'),
+      ]);
+      if (ov) setOverview(ov);
+      if (id) setIdeas(id.ideas || []);
+    }, 5000);
+    return () => clearInterval(iv);
+  }, [get]);
 
   const handleAction = useCallback(async (ideaId, action, body) => {
     setActionLoading(ideaId);
@@ -357,14 +382,12 @@ function BacklogInboxTab() {
 
   const backlogSections = overview?.backlog?.sections || [];
   const stats = overview?.stats || {};
-  const pendingIdeas = ideas.filter(i => i.status === 'neu' || i.status === 'analysiert');
-  const approvedIdeas = ideas.filter(i => i.status === 'approved');
-  const otherIdeas = ideas.filter(i => i.status !== 'neu' && i.status !== 'analysiert' && i.status !== 'approved');
+  const pendingIdeas  = ideas.filter(i => i.status === 'neu' || i.status === 'analysiert');
+  const decidedIdeas  = ideas.filter(i => ['approved','rejected','deferred'].includes(i.status));
 
   const tabs = [
+    { id: 'ideas',   label: 'Ideen',   count: pendingIdeas.length, icon: Zap },
     { id: 'backlog', label: 'Backlog', count: stats.backlog_items || 0, icon: BookOpen },
-    { id: 'inbox',   label: 'Inbox',   count: pendingIdeas.length,       icon: Inbox },
-    { id: 'ideas',   label: 'Ideas',   count: ideas.length,              icon: Zap },
   ];
 
   return (

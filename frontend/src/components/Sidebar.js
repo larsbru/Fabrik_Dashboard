@@ -3,12 +3,12 @@ import { LayoutDashboard, Server, GitBranch, Settings, Cpu, Wifi, WifiOff, Inbox
 import './Sidebar.css';
 
 const NAV_ITEMS = [
-  { id: 'pipeline',      label: 'Pipeline',       icon: Zap },
-  { id: 'inbox',         label: 'Backlog + Inbox', icon: Inbox },
-  { id: 'staging',       label: 'Staging',         icon: Server },
-  { id: 'fabrik-health', label: 'Fabrik-Health',   icon: Heart },
-  { id: 'dashboard',     label: 'Dashboard',       icon: LayoutDashboard },
-  { id: 'settings',      label: 'Einstellungen',   icon: Settings },
+  { id: 'pipeline',      label: 'Pipeline',        icon: Zap },
+  { id: 'inbox',         label: 'Ideen & Backlog', icon: Inbox },
+  { id: 'staging',       label: 'Staging',          icon: Server },
+  { id: 'fabrik-health', label: 'Fabrik-Health',    icon: Heart },
+  { id: 'dashboard',     label: 'Dashboard',        icon: LayoutDashboard },
+  { id: 'settings',      label: 'Einstellungen',    icon: Settings },
 ];
 
 function Sidebar({ currentView, onNavigate, machines = [], isOpen, onClose }) {
