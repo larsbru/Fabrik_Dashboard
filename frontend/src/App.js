@@ -12,6 +12,7 @@ import GitHubActivity from './components/GitHubActivity';
 import GatewayMetrics from './components/GatewayMetrics';
 import InboxBacklog from './components/InboxBacklog';
 import PipelineTab from './components/PipelineTab';
+import BacklogInboxTab from './components/BacklogInboxTab';
 import Settings from './components/Settings';
 import './styles/App.css';
 
@@ -164,7 +165,7 @@ function App() {
           </div>
         );
       case VIEWS.INBOX:
-        return <InboxBacklog />;
+        return <BacklogInboxTab />;
       case VIEWS.SETTINGS:
         return <Settings />;
       default:
