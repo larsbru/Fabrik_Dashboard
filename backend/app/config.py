@@ -19,6 +19,10 @@ class Settings(BaseSettings):
     ssh_key_path: str = Field(default="/app/config/ssh_keys/id_rsa", description="Default SSH key path")
     ssh_config_path: str = Field(default="/app/config/machines.yml", description="Machines config file path")
 
+    # Gateway
+    fabrik_gateway_url: str = Field(default="http://192.168.44.70:8080", description="Fabrik-Gateway URL")
+    fabrik_gateway_token: str = Field(default="", description="Fabrik-Gateway internal token")
+
     # Server
     api_host: str = Field(default="0.0.0.0")
     api_port: int = Field(default=8000)

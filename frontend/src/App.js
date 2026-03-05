@@ -9,6 +9,7 @@ import MachineGrid from './components/MachineGrid';
 import MachineDetail from './components/MachineDetail';
 import GitHubPipeline from './components/GitHubPipeline';
 import GitHubActivity from './components/GitHubActivity';
+import GatewayMetrics from './components/GatewayMetrics';
 import InboxBacklog from './components/InboxBacklog';
 import Settings from './components/Settings';
 import './styles/App.css';
@@ -155,6 +156,7 @@ function App() {
             )}
             <GitHubPipeline summary={githubSummary} config={config} />
             <GitHubActivity summary={githubSummary} config={config} />
+            <GatewayMetrics />
           </div>
         );
       case VIEWS.INBOX:

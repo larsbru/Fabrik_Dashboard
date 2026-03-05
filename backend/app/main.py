@@ -13,6 +13,7 @@ from .routers import alerts as alerts_router
 from .routers import github as github_router
 from .routers import inbox as inbox_router
 from .routers import machines as machines_router
+from .routers import gateway as gateway_router
 from .routers import repos as repos_router
 from .routers import settings as settings_router
 from .routers import websocket as ws_router
@@ -90,6 +91,7 @@ app.include_router(alerts_router.router)
 app.include_router(ws_router.router)
 app.include_router(settings_router.router)
 app.include_router(repos_router.router)
+app.include_router(gateway_router.router)
 
 
 @app.get("/health")
