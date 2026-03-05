@@ -106,7 +106,7 @@ function App() {
     setSidebarOpen(false);
   }, []);
 
-  const showStatsBar = currentView === VIEWS.DASHBOARD || currentView === VIEWS.MACHINES;
+  const showStatsBar = false; // Stats-Bar deaktiviert (Dashboard vereinfacht)
 
   const renderContent = () => {
     switch (currentView) {
@@ -115,9 +115,8 @@ function App() {
       case VIEWS.DASHBOARD:
         return (
           <div className="dashboard-view">
-            <GitHubPipeline summary={githubSummary} config={config} />
             <MachineGrid
-              machines={machines}
+              machines={machines.filter(m => !m.auto_discovered)}
               onSelect={setSelectedMachine}
               onRefresh={handleRefreshMachine}
               githubSummary={githubSummary}

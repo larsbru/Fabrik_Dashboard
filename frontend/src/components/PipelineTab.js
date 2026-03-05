@@ -62,9 +62,10 @@ function IssueCard({ issue, onAction, actionLoading }) {
       borderLeft: `3px solid ${stageColor}`,
       borderRadius: 6,
       padding: '8px 10px',
-      marginBottom: 6,
       cursor: 'pointer',
       transition: 'border-color 0.15s',
+      flex: '1 1 280px',   // mobile: volle Breite; desktop: min 280px, wächst mit
+      minWidth: 0,
     }}
       onClick={() => setExpanded(v => !v)}
     >
@@ -172,46 +173,48 @@ function IssueCard({ issue, onAction, actionLoading }) {
 }
 
 function StageColumn({ stage, onAction, actionLoading }) {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(stage.issues.length === 0);
   const color = STAGE_COLORS[stage.stage] || '#6b7280';
   const count = stage.issues.length;
 
+  // Leere Stages standardmäßig kollabiert — spart Platz auf Mobiltelefon
   return (
     <div style={{
-      minWidth: 200, maxWidth: 260, flex: '0 0 220px',
+      width: '100%',
       background: 'var(--bg-card, #141824)',
       border: `1px solid ${color}22`,
-      borderTop: `2px solid ${color}`,
+      borderLeft: `3px solid ${color}`,
       borderRadius: 8,
-      display: 'flex', flexDirection: 'column',
-      maxHeight: 'calc(100vh - 180px)',
     }}>
-      {/* Column header */}
+      {/* Row header */}
       <button
         onClick={() => setCollapsed(v => !v)}
         style={{
-          display: 'flex', alignItems: 'center', gap: 6,
-          padding: '8px 10px', background: 'none', border: 'none',
+          display: 'flex', alignItems: 'center', gap: 8,
+          padding: '10px 12px', background: 'none', border: 'none',
           cursor: 'pointer', width: '100%', textAlign: 'left',
         }}
       >
         <span style={{ width: 8, height: 8, borderRadius: '50%', background: color, flexShrink: 0 }} />
-        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-primary, #e2e8f0)', flex: 1 }}>
+        <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary, #e2e8f0)', flex: 1 }}>
           {stage.stage}
         </span>
         <span style={{
-          fontSize: '0.65rem', fontWeight: 700, padding: '1px 6px',
+          fontSize: '0.7rem', fontWeight: 700, padding: '2px 8px',
           borderRadius: 10, background: color + '22', color,
         }}>
           {count}
         </span>
-        {collapsed ? <ChevronRight size={12} style={{ color: '#6b7280' }} />
-                   : <ChevronDown size={12} style={{ color: '#6b7280' }} />}
+        {collapsed ? <ChevronRight size={14} style={{ color: '#6b7280' }} />
+                   : <ChevronDown size={14} style={{ color: '#6b7280' }} />}
       </button>
 
-      {/* Cards */}
+      {/* Cards – wrapping row layout */}
       {!collapsed && (
-        <div style={{ padding: '0 8px 8px', overflowY: 'auto', flex: 1 }}>
+        <div style={{
+          padding: '0 10px 10px',
+          display: 'flex', flexWrap: 'wrap', gap: 8,
+        }}>
           {count === 0 ? (
             <div style={{ fontSize: '0.7rem', color: '#4b5563', textAlign: 'center', padding: '12px 0' }}>
               leer
@@ -372,11 +375,11 @@ function PipelineTab() {
         </div>
       )}
 
-      {/* Kanban board – horizontal scroll */}
+      {/* Kanban board – vertikal (mobile-first) */}
       <div style={{
-        flex: 1, overflowX: 'auto', overflowY: 'hidden',
+        flex: 1, overflowY: 'auto',
         padding: '12px 16px',
-        display: 'flex', gap: 10, alignItems: 'flex-start',
+        display: 'flex', flexDirection: 'column', gap: 10,
       }}>
         {loading && !pipeline ? (
           <div style={{ color: '#6b7280', fontSize: '0.85rem', padding: 20 }}>Lade Pipeline...</div>
