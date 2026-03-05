@@ -17,6 +17,7 @@ from .routers import gateway as gateway_router
 from .routers import repos as repos_router
 from .routers import settings as settings_router
 from .routers import websocket as ws_router
+from .routers import pipeline as pipeline_router
 from .services.alerts import AlertService
 from .services.github_service import GitHubService
 from .services.network_scanner import NetworkScanner
@@ -51,6 +52,9 @@ settings_router.scanner = scanner
 settings_router.github_service = github_service
 settings_router.ssh_manager = ssh_manager
 settings_router.scheduler = scheduler
+
+# Inject github_service into pipeline router
+pipeline_router.github_service = github_service
 
 
 @asynccontextmanager
@@ -92,6 +96,7 @@ app.include_router(ws_router.router)
 app.include_router(settings_router.router)
 app.include_router(repos_router.router)
 app.include_router(gateway_router.router)
+app.include_router(pipeline_router.router)
 
 
 @app.get("/health")
