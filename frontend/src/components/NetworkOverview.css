@@ -70,8 +70,23 @@
   }
 }
 
-@media (max-width: 800px) {
+@media (max-width: 768px) {
   .overview-grid {
     grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-sm);
+  }
+
+  .stat-value {
+    font-size: 20px;
+  }
+
+  .stat-card {
+    padding: var(--space-sm) var(--space-md);
+  }
+}
+
+@media (max-width: 480px) {
+  .overview-grid {
+    grid-template-columns: 1fr 1fr;
   }
 }

@@ -11,9 +11,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from .config import settings
 from .routers import alerts as alerts_router
 from .routers import github as github_router
+from .routers import inbox as inbox_router
 from .routers import machines as machines_router
+from .routers import gateway as gateway_router
+from .routers import repos as repos_router
 from .routers import settings as settings_router
 from .routers import websocket as ws_router
+from .routers import pipeline as pipeline_router
+from .routers import staging as staging_router
+from .routers import health as health_router
+from .routers import agent_status as agent_status_router
 from .services.alerts import AlertService
 from .services.github_service import GitHubService
 from .services.network_scanner import NetworkScanner
@@ -49,6 +56,9 @@ settings_router.github_service = github_service
 settings_router.ssh_manager = ssh_manager
 settings_router.scheduler = scheduler
 
+# Inject github_service into pipeline router
+pipeline_router.github_service = github_service
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -83,9 +93,16 @@ app.add_middleware(
 # Register routers
 app.include_router(machines_router.router)
 app.include_router(github_router.router)
+app.include_router(inbox_router.router)
 app.include_router(alerts_router.router)
 app.include_router(ws_router.router)
 app.include_router(settings_router.router)
+app.include_router(repos_router.router)
+app.include_router(gateway_router.router)
+app.include_router(pipeline_router.router)
+app.include_router(staging_router.router)
+app.include_router(health_router.router)
+app.include_router(agent_status_router.router)
 
 
 @app.get("/health")

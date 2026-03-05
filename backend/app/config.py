@@ -12,12 +12,16 @@ class Settings(BaseSettings):
 
     # Network
     network_subnet: str = Field(default="192.168.44.0/24", description="Network subnet to scan")
-    host_ip: str = Field(default="192.168.44.1", description="Host machine IP")
+    host_ip: str = Field(default="192.168.44.10", description="Host machine IP")
     scan_interval: int = Field(default=60, description="Network scan interval in seconds")
 
     # SSH
     ssh_key_path: str = Field(default="/app/config/ssh_keys/id_rsa", description="Default SSH key path")
     ssh_config_path: str = Field(default="/app/config/machines.yml", description="Machines config file path")
+
+    # Gateway
+    fabrik_gateway_url: str = Field(default="http://192.168.44.70:8080", description="Fabrik-Gateway URL")
+    fabrik_gateway_token: str = Field(default="", description="Fabrik-Gateway internal token")
 
     # Server
     api_host: str = Field(default="0.0.0.0")

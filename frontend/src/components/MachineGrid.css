@@ -105,6 +105,20 @@
   font-family: 'SF Mono', 'Fira Code', monospace;
 }
 
+/* Ticket count badge */
+.ticket-count-badge {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  border-radius: var(--radius-full);
+  background: rgba(10, 132, 255, 0.1);
+  color: var(--accent-blue);
+  font-size: 10px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
 .machine-refresh-btn {
   display: flex;
   align-items: center;
@@ -243,4 +257,20 @@
   background: rgba(255, 255, 255, 0.04);
   padding: 1px 6px;
   border-radius: var(--radius-full);
+}
+
+@media (max-width: 768px) {
+  .machine-grid-cards {
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  }
+
+  .machine-grid.compact .machine-grid-cards {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .machine-grid-cards {
+    grid-template-columns: 1fr;
+  }
 }

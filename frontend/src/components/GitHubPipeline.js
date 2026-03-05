@@ -1,17 +1,65 @@
-import React from 'react';
-import { GitPullRequest, CircleDot, CheckCircle2, Clock, MessageSquare, User, Tag, AlertTriangle, Settings } from 'lucide-react';
+import React, { useState } from 'react';
+import { GitPullRequest, CircleDot, CheckCircle2, Clock, MessageSquare, User, AlertTriangle, ChevronDown, ChevronRight, Cpu, Check } from 'lucide-react';
 import './GitHubPipeline.css';
 
 const STAGE_CONFIG = {
-  'Backlog': { color: 'var(--text-tertiary)', icon: Clock },
-  'In Progress': { color: 'var(--accent-blue)', icon: CircleDot },
-  'In Review': { color: 'var(--accent-orange)', icon: GitPullRequest },
-  'Done': { color: 'var(--accent-green)', icon: CheckCircle2 },
+  'awaiting-uat': { color: 'var(--accent-green)', icon: CheckCircle2 },
+  'blocked': { color: 'var(--accent-red)', icon: AlertTriangle },
+  'ready-for-qa': { color: 'var(--accent-yellow)', icon: Clock },
+  'agent:ready': { color: 'var(--accent-blue)', icon: Clock },
+  'assigned:agent0': { color: 'var(--accent-cyan)', icon: Cpu },
+  'assigned:dispatcher-01': { color: 'var(--accent-orange)', icon: Cpu },
+  'assigned:dev-agent-01': { color: 'var(--accent-purple)', icon: Cpu },
+  'assigned:qa-agent-01': { color: 'var(--accent-yellow)', icon: Cpu },
+  'status:failed-ci': { color: 'var(--accent-red)', icon: AlertTriangle },
+  'status:failed-qa': { color: 'var(--accent-red)', icon: AlertTriangle },
+  'status:failed-merge': { color: 'var(--accent-red)', icon: AlertTriangle },
+  'status:failed-deploy': { color: 'var(--accent-red)', icon: AlertTriangle },
 };
 
-function IssueCard({ issue }) {
+const DEFAULT_VISIBLE = 3;
+
+function AssignmentLabel({ labels }) {
+  const assigned = labels?.filter(l => l.name.toLowerCase().startsWith('assigned:'));
+  const retries = labels?.filter(l => l.name.toLowerCase().startsWith('retry:'));
+
+  if (!assigned?.length && !retries?.length) return null;
+
   return (
-    <div className="pipeline-card">
+    <div className="pipeline-assignment-labels">
+      {assigned?.map((l, i) => (
+        <span key={i} className="assignment-badge">
+          <Cpu size={8} />
+          {l.name.split(':')[1]}
+        </span>
+      ))}
+      {retries?.map((l, i) => (
+        <span key={i} className="retry-badge">
+          {l.name}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function getGitHubUrl(config, number, type) {
+  const owner = config?.github_owner || 'larsbru';
+  const repo = config?.github_repo || 'Archyveon_Core';
+  const repoPath = repo.includes('/') ? repo : `${owner}/${repo}`;
+  const suffix = type === 'pr' ? 'pull' : 'issues';
+  return `https://github.com/${repoPath}/${suffix}/${number}`;
+}
+
+function IssueCard({ issue, config, stageName, onConfirmUAT }) {
+  const isUAT = stageName === 'awaiting-uat';
+  return (
+    <div className={`pipeline-card ${isUAT ? 'uat-card' : ''}`}>
+      <a
+        href={getGitHubUrl(config, issue.number, 'issue')}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="pipeline-card-link-inner"
+      >
       <div className="pipeline-card-header">
         <CircleDot
           size={14}
@@ -20,8 +68,13 @@ function IssueCard({ issue }) {
         <span className="pipeline-card-number">#{issue.number}</span>
       </div>
       <div className="pipeline-card-title">{issue.title}</div>
+      <AssignmentLabel labels={issue.labels} />
       <div className="pipeline-card-meta">
-        {issue.labels?.slice(0, 3).map((label, i) => (
+        {issue.labels?.filter(l =>
+          !l.name.toLowerCase().startsWith('assigned:') &&
+          !l.name.toLowerCase().startsWith('retry:') &&
+          !Object.keys(STAGE_CONFIG).includes(l.name.toLowerCase())
+        ).slice(0, 3).map((label, i) => (
           <span
             key={i}
             className="pipeline-label"
@@ -52,27 +105,48 @@ function IssueCard({ issue }) {
           </div>
         )}
       </div>
+      </a>
+      {isUAT && onConfirmUAT && (
+        <button
+          className="uat-confirm-btn"
+          onClick={(e) => { e.stopPropagation(); onConfirmUAT(issue.number); }}
+          title="UAT bestätigen – Issue schließen"
+        >
+          <Check size={14} />
+          <span>UAT bestätigen</span>
+        </button>
+      )}
     </div>
   );
 }
 
-function PRCard({ pr }) {
+function PRCard({ pr, config }) {
   const stateColor =
     pr.state === 'merged' ? 'var(--accent-purple)' :
     pr.state === 'open' ? 'var(--accent-green)' :
     'var(--accent-red)';
 
   return (
-    <div className="pipeline-card pr-card">
+    <a
+      href={getGitHubUrl(config, pr.number, 'pr')}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="pipeline-card pr-card pipeline-card-link"
+    >
       <div className="pipeline-card-header">
         <GitPullRequest size={14} style={{ color: stateColor }} />
         <span className="pipeline-card-number">#{pr.number}</span>
         {pr.checks_passed === true && <CheckCircle2 size={12} className="check-pass" />}
       </div>
       <div className="pipeline-card-title">{pr.title}</div>
+      <AssignmentLabel labels={pr.labels} />
       <div className="pipeline-card-meta">
         <span className="pr-branch">{pr.head_branch}</span>
-        {pr.labels?.slice(0, 2).map((label, i) => (
+        {pr.labels?.filter(l =>
+          !l.name.toLowerCase().startsWith('assigned:') &&
+          !l.name.toLowerCase().startsWith('retry:') &&
+          !Object.keys(STAGE_CONFIG).includes(l.name.toLowerCase())
+        ).slice(0, 2).map((label, i) => (
           <span
             key={i}
             className="pipeline-label"
@@ -99,11 +173,46 @@ function PRCard({ pr }) {
           <span className="pr-deletions">-{pr.deletions}</span>
         </div>
       </div>
-    </div>
+    </a>
   );
 }
 
-function GitHubPipeline({ summary, compact, onNavigate }) {
+function GitHubPipeline({ summary, compact, config }) {
+  const [expandedStages, setExpandedStages] = useState(new Set());
+  const [confirmingUAT, setConfirmingUAT] = useState(null);
+
+  const handleConfirmUAT = async (issueNumber) => {
+    if (confirmingUAT) return;
+    setConfirmingUAT(issueNumber);
+    try {
+      const resp = await fetch('/api/github/uat-confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ issue_number: issueNumber }),
+      });
+      const data = await resp.json();
+      if (data.error) {
+        alert(`Fehler: ${data.error}`);
+      }
+    } catch (err) {
+      alert(`Fehler: ${err.message}`);
+    } finally {
+      setConfirmingUAT(null);
+    }
+  };
+
+  const toggleStage = (name) => {
+    setExpandedStages(prev => {
+      const next = new Set(prev);
+      if (next.has(name)) {
+        next.delete(name);
+      } else {
+        next.add(name);
+      }
+      return next;
+    });
+  };
+
   if (!summary || summary.error || !summary.configured) {
     const errorMsg = summary?.error || (!summary?.configured ? 'GitHub ist nicht konfiguriert' : null);
     return (
@@ -141,33 +250,60 @@ function GitHubPipeline({ summary, compact, onNavigate }) {
             <GitPullRequest size={12} />
             {summary.open_prs} PRs
           </span>
+          {summary.last_sync && (
+            <span className="pipeline-sync-time">
+              {new Date(summary.last_sync).toLocaleTimeString('de-DE')}
+            </span>
+          )}
         </div>
       </div>
 
       <div className="pipeline-board">
         {(summary.pipeline || []).map((stage) => {
-          const config = STAGE_CONFIG[stage.name] || STAGE_CONFIG['Backlog'];
+          const config = STAGE_CONFIG[stage.name] || { color: 'var(--text-tertiary)', icon: Clock };
           const StageIcon = config.icon;
           const items = [...(stage.issues || []), ...(stage.pull_requests || [])];
-          const displayItems = compact ? items.slice(0, 4) : items;
+          const isExpanded = expandedStages.has(stage.name);
+          const maxItems = compact ? 2 : DEFAULT_VISIBLE;
+          const displayItems = isExpanded ? items : items.slice(0, maxItems);
+          const remaining = items.length - maxItems;
 
           return (
             <div key={stage.name} className="pipeline-column">
-              <div className="pipeline-column-header">
+              <button
+                className="pipeline-column-header"
+                onClick={() => toggleStage(stage.name)}
+              >
                 <StageIcon size={14} style={{ color: config.color }} />
                 <span className="column-name">{stage.name}</span>
                 <span className="column-count">{items.length}</span>
-              </div>
+                {items.length > maxItems && (
+                  isExpanded ?
+                    <ChevronDown size={12} className="column-chevron" /> :
+                    <ChevronRight size={12} className="column-chevron" />
+                )}
+              </button>
               <div className="pipeline-column-cards">
                 {displayItems.map((item) =>
                   'head_branch' in item ? (
-                    <PRCard key={`pr-${item.number}`} pr={item} />
+                    <PRCard key={`pr-${item.number}`} pr={item} config={config} />
                   ) : (
-                    <IssueCard key={`issue-${item.number}`} issue={item} />
+                    <IssueCard
+                      key={`issue-${item.number}`}
+                      issue={item}
+                      config={config}
+                      stageName={stage.name}
+                      onConfirmUAT={handleConfirmUAT}
+                    />
                   )
                 )}
-                {compact && items.length > 4 && (
-                  <div className="pipeline-more">+{items.length - 4} weitere</div>
+                {!isExpanded && remaining > 0 && (
+                  <button
+                    className="pipeline-more"
+                    onClick={() => toggleStage(stage.name)}
+                  >
+                    +{remaining} weitere
+                  </button>
                 )}
               </div>
             </div>

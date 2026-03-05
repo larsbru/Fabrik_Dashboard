@@ -3,15 +3,28 @@ import { useWebSocket } from './hooks/useWebSocket';
 import { useApi } from './hooks/useApi';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
+import SystemStatsBar from './components/SystemStatsBar';
 import NetworkOverview from './components/NetworkOverview';
 import MachineGrid from './components/MachineGrid';
 import MachineDetail from './components/MachineDetail';
 import GitHubPipeline from './components/GitHubPipeline';
 import GitHubActivity from './components/GitHubActivity';
+import GatewayMetrics from './components/GatewayMetrics';
+import InboxBacklog from './components/InboxBacklog';
+import PipelineTab from './components/PipelineTab';
+import BacklogInboxTab from './components/BacklogInboxTab';
+import StagingTab from './components/StagingTab';
+import FabrikHealthTab from './components/FabrikHealthTab';
+import AgentStatusTab from './components/AgentStatusTab';
 import Settings from './components/Settings';
 import './styles/App.css';
 
 const VIEWS = {
+  PIPELINE: 'pipeline',
+  INBOX: 'inbox',
+  AGENTS: 'agents',
+  STAGING: 'staging',
+  FABRIK_HEALTH: 'fabrik-health',
   DASHBOARD: 'dashboard',
   MACHINES: 'machines',
   GITHUB: 'github',
@@ -21,26 +34,33 @@ const VIEWS = {
 function App() {
   const { isConnected, lastMessage } = useWebSocket();
   const { get, post } = useApi();
-  const [currentView, setCurrentView] = useState(VIEWS.DASHBOARD);
+  const [currentView, setCurrentView] = useState(VIEWS.PIPELINE);
   const [machines, setMachines] = useState([]);
   const [networkSummary, setNetworkSummary] = useState(null);
   const [githubSummary, setGithubSummary] = useState(null);
   const [selectedMachine, setSelectedMachine] = useState(null);
   const [config, setConfig] = useState(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState(null);
+  const [repos, setRepos] = useState([]);
+  const [selectedRepo, setSelectedRepo] = useState(null); // null = default
 
   // Initial data fetch
   const fetchData = useCallback(async () => {
-    const [machinesData, summaryData, githubData, configData] = await Promise.all([
+    const repoParam = selectedRepo ? `?repo=${encodeURIComponent(selectedRepo)}` : '';
+    const [machinesData, summaryData, githubData, configData, reposData] = await Promise.all([
       get('/api/machines'),
       get('/api/machines/summary'),
-      get('/api/github/summary'),
+      get(`/api/github/summary${repoParam}`),
       get('/api/config'),
+      get('/api/repos'),
     ]);
     if (machinesData) setMachines(machinesData);
     if (summaryData) setNetworkSummary(summaryData);
     if (githubData) setGithubSummary(githubData);
     if (configData) setConfig(configData);
-  }, [get]);
+    if (reposData) setRepos(reposData);
+  }, [get, selectedRepo]);
 
   useEffect(() => {
     fetchData();
@@ -49,6 +69,8 @@ function App() {
   // Handle WebSocket updates
   useEffect(() => {
     if (!lastMessage) return;
+
+    setLastUpdated(new Date());
 
     switch (lastMessage.type) {
       case 'network_update':
@@ -80,25 +102,28 @@ function App() {
     }
   }, [post, selectedMachine]);
 
+  const handleNavigate = useCallback((view) => {
+    setCurrentView(view);
+    setSelectedMachine(null);
+    setSidebarOpen(false);
+  }, []);
+
+  const showStatsBar = false; // Stats-Bar deaktiviert (Dashboard vereinfacht)
+
   const renderContent = () => {
     switch (currentView) {
+      case VIEWS.PIPELINE:
+        return <PipelineTab />;
       case VIEWS.DASHBOARD:
         return (
           <div className="dashboard-view">
-            <NetworkOverview summary={networkSummary} machines={machines} />
-            <div className="dashboard-grid">
-              <div className="dashboard-left">
-                <MachineGrid
-                  machines={machines}
-                  onSelect={setSelectedMachine}
-                  onRefresh={handleRefreshMachine}
-                  compact
-                />
-              </div>
-              <div className="dashboard-right">
-                <GitHubPipeline summary={githubSummary} compact />
-              </div>
-            </div>
+            <MachineGrid
+              machines={machines.filter(m => !m.auto_discovered)}
+              onSelect={setSelectedMachine}
+              onRefresh={handleRefreshMachine}
+              githubSummary={githubSummary}
+              compact
+            />
           </div>
         );
       case VIEWS.MACHINES:
@@ -109,12 +134,14 @@ function App() {
                 machine={selectedMachine}
                 onBack={() => setSelectedMachine(null)}
                 onRefresh={handleRefreshMachine}
+                githubSummary={githubSummary}
               />
             ) : (
               <MachineGrid
                 machines={machines}
                 onSelect={setSelectedMachine}
                 onRefresh={handleRefreshMachine}
+                githubSummary={githubSummary}
               />
             )}
           </div>
@@ -122,10 +149,34 @@ function App() {
       case VIEWS.GITHUB:
         return (
           <div className="github-view">
-            <GitHubPipeline summary={githubSummary} />
-            <GitHubActivity summary={githubSummary} />
+            {repos.length > 1 && (
+              <div className="repo-selector">
+                <span className="repo-selector-label">Repo:</span>
+                <select
+                  className="repo-selector-select"
+                  value={selectedRepo || ''}
+                  onChange={e => setSelectedRepo(e.target.value || null)}
+                >
+                  <option value="">Alle / Standard</option>
+                  {repos.filter(r => r.status === 'active').map(r => (
+                    <option key={r.github} value={r.github}>{r.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <GitHubPipeline summary={githubSummary} config={config} />
+            <GitHubActivity summary={githubSummary} config={config} />
+            <GatewayMetrics />
           </div>
         );
+      case VIEWS.INBOX:
+        return <BacklogInboxTab />;
+      case VIEWS.AGENTS:
+        return <AgentStatusTab />;
+      case VIEWS.STAGING:
+        return <StagingTab />;
+      case VIEWS.FABRIK_HEALTH:
+        return <FabrikHealthTab />;
       case VIEWS.SETTINGS:
         return <Settings />;
       default:
@@ -135,10 +186,13 @@ function App() {
 
   return (
     <div className="app">
+      {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />}
       <Sidebar
         currentView={currentView}
-        onNavigate={(view) => { setCurrentView(view); setSelectedMachine(null); }}
+        onNavigate={handleNavigate}
         machines={machines}
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
       />
       <div className="main-content">
         <Header
@@ -147,7 +201,10 @@ function App() {
           onScan={handleScan}
           onSync={handleGitHubSync}
           currentView={currentView}
+          onMenuToggle={() => setSidebarOpen(prev => !prev)}
+          lastUpdated={lastUpdated}
         />
+        {showStatsBar && <SystemStatsBar machines={machines} />}
         <div className="content-area">
           {renderContent()}
         </div>

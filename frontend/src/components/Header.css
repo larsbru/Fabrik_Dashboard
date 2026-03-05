@@ -14,6 +14,31 @@
   gap: 2px;
 }
 
+.header-left-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.hamburger-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.hamburger-btn:hover {
+  background: var(--glass-bg);
+  color: var(--text-primary);
+}
+
 .header-title {
   font-size: 20px;
   font-weight: 600;
@@ -30,6 +55,12 @@
   display: flex;
   align-items: center;
   gap: var(--space-sm);
+}
+
+.header-timestamp {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  font-family: 'SF Mono', 'Fira Code', monospace;
 }
 
 .connection-badge {
@@ -84,4 +115,35 @@
 
 .header-btn:active {
   transform: scale(0.97);
+}
+
+@media (max-width: 768px) {
+  .hamburger-btn {
+    display: flex;
+  }
+
+  .header {
+    padding: var(--space-sm) var(--space-md);
+    min-height: 52px;
+  }
+
+  .header-title {
+    font-size: 16px;
+  }
+
+  .header-meta {
+    display: none;
+  }
+
+  .header-btn-label {
+    display: none;
+  }
+
+  .header-btn {
+    padding: 7px 10px;
+  }
+
+  .header-timestamp {
+    display: none;
+  }
 }

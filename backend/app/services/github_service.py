@@ -261,40 +261,60 @@ class GitHubService:
 
         return prs
 
+    # Pipeline label definitions – CEO's action items first, then active stages, then blocked
+    PIPELINE_LABELS = [
+        "awaiting-uat",
+        "blocked",
+        "ready-for-qa",
+        "agent:ready",
+        "assigned:agent0",
+        "assigned:dispatcher-01",
+        "assigned:dev-agent-01",
+        "assigned:qa-agent-01",
+        "status:failed-ci",
+        "status:failed-qa",
+        "status:failed-merge",
+        "status:failed-deploy",
+    ]
+
+    def _parse_assigned_machine(self, labels: list) -> str | None:
+        """Extract machine name from assigned:* labels."""
+        for label in labels:
+            if label.name.lower().startswith("assigned:"):
+                return label.name.split(":", 1)[1].strip()
+        return None
+
     def _build_summary(self):
-        """Build pipeline summary from current data."""
+        """Build pipeline summary from current data using label-based stages."""
         open_issues = [i for i in self._issues if i.state == IssueState.OPEN]
         closed_issues = [i for i in self._issues if i.state == IssueState.CLOSED]
         open_prs = [p for p in self._pull_requests if p.state == PRState.OPEN]
         merged_prs = [p for p in self._pull_requests if p.state == PRState.MERGED]
 
-        # Build pipeline stages based on labels
-        backlog = PipelineStage(name="Backlog")
-        in_progress = PipelineStage(name="In Progress")
-        in_review = PipelineStage(name="In Review")
-        done = PipelineStage(name="Done")
+        # Create a stage for each pipeline label
+        stages: dict[str, PipelineStage] = {}
+        for label_name in self.PIPELINE_LABELS:
+            stages[label_name] = PipelineStage(name=label_name)
 
-        for issue in self._issues:
+        # Classify open issues into stages by label
+        for issue in open_issues:
             label_names = [l.name.lower() for l in issue.labels]
-            if issue.state == IssueState.CLOSED:
-                done.issues.append(issue)
-            elif any(lbl in label_names for lbl in ["in progress", "wip", "working"]):
-                in_progress.issues.append(issue)
-            elif any(lbl in label_names for lbl in ["review", "in review"]):
-                in_review.issues.append(issue)
-            else:
-                backlog.issues.append(issue)
+            issue.assigned_machine = self._parse_assigned_machine(issue.labels)
+            for pipeline_label in self.PIPELINE_LABELS:
+                if pipeline_label in label_names:
+                    stages[pipeline_label].issues.append(issue)
+                    break
 
-        for pr in self._pull_requests:
-            if pr.state == PRState.MERGED:
-                done.pull_requests.append(pr)
-            elif pr.state == PRState.OPEN:
-                if pr.review_state in (PRReviewState.APPROVED, PRReviewState.CHANGES_REQUESTED):
-                    in_review.pull_requests.append(pr)
-                else:
-                    in_progress.pull_requests.append(pr)
-            else:
-                done.pull_requests.append(pr)
+        # Classify open PRs into stages by label
+        for pr in open_prs:
+            label_names = [l.name.lower() for l in pr.labels]
+            pr.assigned_machine = self._parse_assigned_machine(pr.labels)
+            for pipeline_label in self.PIPELINE_LABELS:
+                if pipeline_label in label_names:
+                    stages[pipeline_label].pull_requests.append(pr)
+                    break
+
+        pipeline = [stages[l] for l in self.PIPELINE_LABELS]
 
         self._summary = GitHubSummary(
             repo_name=f"{self.owner}/{self.repo}",
@@ -303,7 +323,7 @@ class GitHubService:
             closed_issues=len(closed_issues),
             open_prs=len(open_prs),
             merged_prs=len(merged_prs),
-            pipeline=[backlog, in_progress, in_review, done],
+            pipeline=pipeline,
             last_sync=self._last_sync,
         )
 
@@ -335,6 +355,38 @@ class GitHubService:
         summary.error = self._last_error
         summary.configured = self._configured
         return summary
+
+    async def confirm_uat(self, issue_number: int) -> dict:
+        """Confirm UAT: remove awaiting-uat label, close the issue."""
+        if not self._configured:
+            return {"error": "GitHub not configured"}
+
+        base = self._repo_url
+
+        async with httpx.AsyncClient() as client:
+            # Remove awaiting-uat label
+            try:
+                await client.delete(
+                    f"{base}/issues/{issue_number}/labels/awaiting-uat",
+                    headers=self._headers,
+                )
+            except Exception as e:
+                logger.warning("Failed to remove awaiting-uat label from #%d: %s", issue_number, e)
+
+            # Close the issue
+            resp = await client.patch(
+                f"{base}/issues/{issue_number}",
+                headers=self._headers,
+                json={"state": "closed"},
+            )
+
+            if resp.status_code == 200:
+                logger.info("UAT confirmed: Issue #%d closed", issue_number)
+                await self.sync()
+                return {"status": "confirmed", "issue_number": issue_number}
+            else:
+                logger.error("Failed to close issue #%d: %s", issue_number, resp.text)
+                return {"error": f"Failed to close issue: {resp.status_code}", "issue_number": issue_number}
 
 
 def _parse_dt(value: Optional[str]) -> Optional[datetime]:

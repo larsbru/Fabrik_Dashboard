@@ -22,25 +22,17 @@
   padding-top: var(--space-md);
 }
 
+/* Sidebar overlay (mobile) */
+.sidebar-overlay {
+  display: none;
+}
+
 /* Dashboard View */
 .dashboard-view {
   display: flex;
   flex-direction: column;
   gap: var(--space-lg);
   animation: fadeIn 0.4s ease-out;
-}
-
-.dashboard-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-lg);
-  min-height: 0;
-}
-
-.dashboard-left,
-.dashboard-right {
-  min-height: 0;
-  overflow-y: auto;
 }
 
 /* Machines View */
@@ -58,7 +50,70 @@
 
 /* Responsive */
 @media (max-width: 1400px) {
-  .dashboard-grid {
-    grid-template-columns: 1fr;
+  /* Single column already in dashboard-view */
+}
+
+@media (max-width: 768px) {
+  .app {
+    flex-direction: column;
+    overflow-x: hidden;
   }
+
+  .sidebar-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 99;
+    animation: fadeIn 0.2s ease-out;
+  }
+
+  .content-area {
+    padding: var(--space-md);
+    padding-top: var(--space-sm);
+    overflow-x: hidden;
+  }
+}
+
+@media (max-width: 480px) {
+  .content-area {
+    padding: var(--space-sm);
+    overflow-x: hidden;
+  }
+}
+
+/* Repo Selector (B40 – Multi-Repo Filter) */
+.repo-selector {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--surface-glass);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  backdrop-filter: blur(10px);
+}
+
+.repo-selector-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.repo-selector-select {
+  background: var(--surface-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  padding: 4px 10px;
+  cursor: pointer;
+  outline: none;
+}
+
+.repo-selector-select:focus {
+  border-color: var(--accent-blue);
 }

@@ -1,20 +1,23 @@
 import React from 'react';
-import { LayoutDashboard, Server, GitBranch, Settings, Cpu, Wifi, WifiOff } from 'lucide-react';
+import { LayoutDashboard, Server, GitBranch, Settings, Cpu, Wifi, WifiOff, Inbox, Zap, Activity, Heart } from 'lucide-react';
 import './Sidebar.css';
 
 const NAV_ITEMS = [
-  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { id: 'machines', label: 'Maschinen', icon: Server },
-  { id: 'github', label: 'GitHub', icon: GitBranch },
-  { id: 'settings', label: 'Einstellungen', icon: Settings },
+  { id: 'pipeline',      label: 'Pipeline',        icon: Zap },
+  { id: 'inbox',         label: 'Ideen & Backlog', icon: Inbox },
+  { id: 'agents',        label: 'Agent-Status',    icon: Activity },
+  { id: 'staging',       label: 'Staging',          icon: Server },
+  { id: 'fabrik-health', label: 'Fabrik-Health',    icon: Heart },
+  { id: 'dashboard',     label: 'Dashboard',        icon: LayoutDashboard },
+  { id: 'settings',      label: 'Einstellungen',    icon: Settings },
 ];
 
-function Sidebar({ currentView, onNavigate, machines = [] }) {
+function Sidebar({ currentView, onNavigate, machines = [], isOpen, onClose }) {
   const onlineCount = machines.filter(m => m.status === 'online').length;
   const totalCount = machines.length;
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar ${isOpen ? 'open' : ''}`}>
       <div className="sidebar-header">
         <div className="sidebar-logo">
           <Cpu size={24} strokeWidth={1.5} />

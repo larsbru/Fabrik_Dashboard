@@ -1,5 +1,5 @@
 import React from 'react';
-import { Server, Cpu, MemoryStick, HardDrive, RefreshCw, Wifi, WifiOff, AlertTriangle, Box } from 'lucide-react';
+import { Server, Cpu, MemoryStick, HardDrive, RefreshCw, Wifi, WifiOff, AlertTriangle, Box, Tag } from 'lucide-react';
 import './MachineGrid.css';
 
 const STATUS_CONFIG = {
@@ -8,6 +8,21 @@ const STATUS_CONFIG = {
   degraded: { color: 'var(--status-degraded)', icon: AlertTriangle, label: 'Degraded' },
   unknown: { color: 'var(--status-unknown)', icon: Server, label: 'Unknown' },
 };
+
+function getTicketCount(githubSummary, machineName) {
+  if (!githubSummary?.pipeline || !machineName) return 0;
+  const name = machineName.toLowerCase();
+  let count = 0;
+  for (const stage of githubSummary.pipeline) {
+    for (const issue of (stage.issues || [])) {
+      if (issue.assigned_machine?.toLowerCase() === name) count++;
+    }
+    for (const pr of (stage.pull_requests || [])) {
+      if (pr.assigned_machine?.toLowerCase() === name) count++;
+    }
+  }
+  return count;
+}
 
 function MiniBar({ value, color, height = 4 }) {
   return (
@@ -23,9 +38,8 @@ function MiniBar({ value, color, height = 4 }) {
   );
 }
 
-function MachineCard({ machine, onSelect, onRefresh, compact }) {
+function MachineCard({ machine, onSelect, onRefresh, compact, ticketCount }) {
   const status = STATUS_CONFIG[machine.status] || STATUS_CONFIG.unknown;
-  const StatusIcon = status.icon;
 
   return (
     <div
@@ -38,6 +52,12 @@ function MachineCard({ machine, onSelect, onRefresh, compact }) {
           <span className="machine-name">{machine.name || machine.hostname || machine.ip}</span>
           <span className="machine-ip">{machine.ip}</span>
         </div>
+        {ticketCount > 0 && (
+          <span className="ticket-count-badge" title={`${ticketCount} Tickets zugewiesen`}>
+            <Tag size={10} />
+            {ticketCount}
+          </span>
+        )}
         <button
           className="machine-refresh-btn"
           onClick={(e) => { e.stopPropagation(); onRefresh(machine.ip); }}
@@ -104,7 +124,7 @@ function MachineCard({ machine, onSelect, onRefresh, compact }) {
   );
 }
 
-function MachineGrid({ machines = [], onSelect, onRefresh, compact }) {
+function MachineGrid({ machines = [], onSelect, onRefresh, compact, githubSummary }) {
   if (!machines.length) {
     return (
       <div className="machine-grid-empty glass">
@@ -137,6 +157,7 @@ function MachineGrid({ machines = [], onSelect, onRefresh, compact }) {
             onSelect={onSelect}
             onRefresh={onRefresh}
             compact={compact}
+            ticketCount={getTicketCount(githubSummary, machine.name || machine.hostname || machine.ip)}
           />
         ))}
       </div>

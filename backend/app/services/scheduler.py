@@ -21,6 +21,8 @@ class BackgroundScheduler:
         self.ws = ws_manager
         self.alerts = alert_service
         self.scan_interval = settings.scan_interval
+        self.github_sync_interval = 10  # seconds
+        self.metrics_interval = 5  # seconds
         self._running = False
         self._tasks: list[asyncio.Task] = []
 
@@ -32,7 +34,10 @@ class BackgroundScheduler:
             asyncio.create_task(self._metrics_collection_loop()),
             asyncio.create_task(self._github_sync_loop()),
         ]
-        logger.info("Background scheduler started (scan_interval=%ds)", self.scan_interval)
+        logger.info(
+            "Background scheduler started (scan=%ds, metrics=%ds, github=%ds)",
+            self.scan_interval, self.metrics_interval, self.github_sync_interval,
+        )
 
     def update_scan_interval(self, interval: int):
         """Update the scan interval at runtime."""
@@ -130,7 +135,7 @@ class BackgroundScheduler:
             except Exception as e:
                 logger.error("Metrics loop error: %s", e)
 
-            await asyncio.sleep(self.scan_interval)
+            await asyncio.sleep(self.metrics_interval)
 
     async def _github_sync_loop(self):
         """Periodically sync GitHub data."""
@@ -147,4 +152,4 @@ class BackgroundScheduler:
             except Exception as e:
                 logger.error("GitHub sync error: %s", e)
 
-            await asyncio.sleep(120)  # Sync every 2 minutes
+            await asyncio.sleep(self.github_sync_interval)

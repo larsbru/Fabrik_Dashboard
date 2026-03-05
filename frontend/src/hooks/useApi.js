@@ -9,7 +9,11 @@ export function useApi() {
     setLoading(true);
     try {
       const res = await fetch(`${API_URL}${path}`, {
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache',
+        },
         ...options,
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);

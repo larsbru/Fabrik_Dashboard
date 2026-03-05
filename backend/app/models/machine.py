@@ -52,6 +52,10 @@ class AgentInfo(BaseModel):
     status: str = "unknown"
     current_task: Optional[str] = None
     last_activity: Optional[datetime] = None
+    cpu_percent: float = 0.0
+    memory_usage: str = ""
+    memory_percent: float = 0.0
+    command: str = ""
 
 
 class Machine(BaseModel):
