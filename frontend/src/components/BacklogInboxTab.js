@@ -384,6 +384,7 @@ function BacklogInboxTab() {
   const [actionLoading, setActionLoading] = useState(null);
   const [feedback, setFeedback] = useState(null);
   const [archivOpen, setArchivOpen] = useState(false);
+  const [batchStatus, setBatchStatus] = useState(null); // null | {status, done, total, current}
 
   const fetchAll = useCallback(async () => {
     const [ov, id] = await Promise.all([
@@ -407,9 +408,24 @@ function BacklogInboxTab() {
       ]);
       if (ov) setOverview(ov);
       if (id) setIdeas(id.ideas || []);
+      // Batch-Status pollen wenn laufend
+      if (batchStatus?.status === 'running' || batchStatus?.status === 'starting') {
+        const bs = await get('/api/inbox/ideas/reanalyze-all/status');
+        if (bs) setBatchStatus(bs);
+      }
     }, 5000);
     return () => clearInterval(iv);
-  }, [get]);
+  }, [get, batchStatus]);
+
+  const handleBatchReanalyze = useCallback(async () => {
+    setBatchStatus({ status: 'starting', done: 0, total: 0, current: null });
+    try {
+      const data = await post('/api/inbox/ideas/reanalyze-all', {});
+      if (data) setBatchStatus(data);
+    } catch (e) {
+      setBatchStatus({ status: 'error', error: e.message });
+    }
+  }, [post]);
 
   const handleAction = useCallback(async (ideaId, action, body) => {
     if (action === '_refresh') { await fetchAll(); return; }
@@ -486,6 +502,37 @@ function BacklogInboxTab() {
           <RefreshCw size={11} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} />
           Refresh
         </button>
+
+        {/* Batch-Reanalyze Button */}
+        {activeTab === 'ideas' && (
+          <button
+            onClick={handleBatchReanalyze}
+            disabled={batchStatus?.status === 'running' || batchStatus?.status === 'starting'}
+            title="Alle Ideen ohne Opus-Analyse neu analysieren (Opus → Sonnet, max 2 parallel)"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 4,
+              padding: '4px 10px', borderRadius: 5, cursor: 'pointer',
+              background: batchStatus?.status === 'done' ? '#22c55e11' : batchStatus?.status === 'error' ? '#ef444411' : '#f59e0b11',
+              color: batchStatus?.status === 'done' ? '#22c55e' : batchStatus?.status === 'error' ? '#ef4444' : '#f59e0b',
+              border: `1px solid ${batchStatus?.status === 'done' ? '#22c55e44' : batchStatus?.status === 'error' ? '#ef444444' : '#f59e0b44'}`,
+              fontSize: '0.7rem',
+              opacity: (batchStatus?.status === 'running' || batchStatus?.status === 'starting') ? 0.6 : 1,
+            }}
+          >
+            <RefreshCw size={11} style={{
+              animation: (batchStatus?.status === 'running' || batchStatus?.status === 'starting') ? 'spin 1s linear infinite' : 'none'
+            }} />
+            {batchStatus?.status === 'running'
+              ? `Opus… ${batchStatus.done || 0}/${batchStatus.total || '?'}`
+              : batchStatus?.status === 'done'
+              ? `✅ ${batchStatus.done}/${batchStatus.total} analysiert`
+              : batchStatus?.status === 'error'
+              ? '❌ Fehler'
+              : batchStatus?.status === 'nothing_to_do'
+              ? '✅ Alle analysiert'
+              : 'Alle analysieren (Opus)'}
+          </button>
+        )}
       </div>
 
       {/* Tab-Leiste */}

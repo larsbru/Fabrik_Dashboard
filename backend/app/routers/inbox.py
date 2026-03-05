@@ -510,3 +510,138 @@ async def reanalyze_status(idea_id: str):
             }
         return {"status": "idle", "idea_id": idea_id}
     return {"idea_id": idea_id, **info}
+
+
+# ── Batch-Reanalyze ───────────────────────────────────────────────────────────
+
+_batch_reanalyze: dict = {
+    "status": "idle",
+    "started_at": None,
+    "finished_at": None,
+    "total": 0,
+    "done": 0,
+    "failed": 0,
+    "skipped": 0,
+    "queue": [],
+    "current": None,
+    "errors": [],
+}
+
+
+def _needs_reanalysis(data: dict) -> bool:
+    """True wenn diese Idee neu (mit Opus/Sonnet) analysiert werden soll."""
+    meta = data.get("_meta", {})
+    zusammenfassung = data.get("zusammenfassung") or ""
+    modell = meta.get("modell") or ""
+    # Bereits mit echtem Claude analysiert und kein Fehlertext → skip
+    if "claude" in modell and "fehlgeschlagen" not in zusammenfassung:
+        return False
+    return True
+
+
+def _run_batch_reanalyze(ideas_to_process: list):
+    """Batch-Worker – max 2 parallele Claude-Aufrufe via Semaphore."""
+    global _batch_reanalyze
+    _batch_reanalyze["status"] = "running"
+    _batch_reanalyze["total"] = len(ideas_to_process)
+    _batch_reanalyze["done"] = 0
+    _batch_reanalyze["failed"] = 0
+    _batch_reanalyze["errors"] = []
+
+    sem = threading.Semaphore(2)
+
+    def process_one(idea_id: str, extracted: Path, draft_path: Path):
+        with sem:
+            _batch_reanalyze["current"] = idea_id
+            try:
+                _run_reanalyze(idea_id, extracted, draft_path)
+                result = _reanalyze_running.get(idea_id, {})
+                if result.get("status") == "done":
+                    _batch_reanalyze["done"] += 1
+                else:
+                    _batch_reanalyze["failed"] += 1
+                    _batch_reanalyze["errors"].append(
+                        (idea_id, (result.get("log") or ["unbekannt"])[-1])
+                    )
+            except Exception as e:
+                _batch_reanalyze["failed"] += 1
+                _batch_reanalyze["errors"].append((idea_id, str(e)))
+
+    threads = []
+    for idea_id, extracted, draft_path in ideas_to_process:
+        t = threading.Thread(target=process_one, args=(idea_id, extracted, draft_path), daemon=True)
+        threads.append(t)
+        t.start()
+    for t in threads:
+        t.join()
+
+    _batch_reanalyze["status"] = "done"
+    _batch_reanalyze["finished_at"] = datetime.utcnow().isoformat()
+    _batch_reanalyze["current"] = None
+    logger.info("Batch-Reanalyze: %d/%d ok, %d Fehler",
+                _batch_reanalyze["done"], _batch_reanalyze["total"], _batch_reanalyze["failed"])
+
+
+@router.post("/ideas/reanalyze-all")
+async def reanalyze_all_ideas():
+    """Alle Ideen mit Parse-Fehler oder Ollama-Analyse neu analysieren (Opus → Sonnet)."""
+    global _batch_reanalyze
+    if _batch_reanalyze.get("status") == "running":
+        return {
+            "status": "already_running",
+            "current": _batch_reanalyze.get("current"),
+            "done": _batch_reanalyze.get("done"),
+            "total": _batch_reanalyze.get("total"),
+        }
+
+    to_process = []
+    skipped = 0
+    for folder in sorted(INBOX_PROCESSED_DIR.iterdir()):
+        draft_path = folder / "draft.yaml"
+        if not draft_path.exists():
+            continue
+        data = _safe_yaml(draft_path)
+        if not data:
+            continue
+        if not _needs_reanalysis(data):
+            skipped += 1
+            continue
+        extracted = folder / "extracted.md"
+        if not extracted.exists():
+            mds = list(folder.glob("*.md"))
+            if not mds:
+                skipped += 1
+                continue
+            extracted = mds[0]
+        to_process.append((folder.name, extracted, draft_path))
+
+    if not to_process:
+        return {"status": "nothing_to_do", "skipped": skipped}
+
+    _batch_reanalyze.update({
+        "status": "starting",
+        "started_at": datetime.utcnow().isoformat(),
+        "finished_at": None,
+        "total": len(to_process),
+        "done": 0, "failed": 0, "skipped": skipped,
+        "queue": [t[0] for t in to_process],
+        "current": None, "errors": [],
+    })
+
+    t = threading.Thread(target=_run_batch_reanalyze, args=(to_process,), daemon=True)
+    t.start()
+
+    logger.info("Batch-Reanalyze gestartet: %d Ideen, %d übersprungen", len(to_process), skipped)
+    return {
+        "status": "started",
+        "total": len(to_process),
+        "skipped": skipped,
+        "queue": [t[0] for t in to_process],
+    }
+
+
+@router.get("/ideas/reanalyze-all/status")
+async def reanalyze_all_status():
+    """Status des laufenden oder letzten Batch-Reanalyze."""
+    return {**_batch_reanalyze}
+
