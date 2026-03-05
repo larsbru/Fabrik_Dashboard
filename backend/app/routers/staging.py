@@ -62,17 +62,26 @@ async def _check_endpoint(url: str, timeout: float = 5.0) -> dict:
 
 async def _get_staging_status(cfg: dict) -> dict:
     """Ermittelt den vollständigen Health-Status für eine Staging-Config."""
-    repo_name = cfg.get("repo_name") or cfg.get("_config_file", "").replace(".yaml", "")
-    base_url = cfg.get("base_url", "")
-    tests = cfg.get("tests", [])
+    repo_name = cfg.get("repo") or cfg.get("repo_name") or cfg.get("_config_file", "").replace(".yaml", "")
     github_repo = cfg.get("github_repo", "")
+
+    # base_url aus staging_ip + staging_port ableiten (oder direkt)
+    base_url = cfg.get("base_url", "")
+    if not base_url:
+        ip = cfg.get("staging_ip", "")
+        port = cfg.get("staging_port")
+        if ip and port:
+            base_url = f"http://{ip}:{port}"
+
+    # Tests: smoke_tests (Fabrik-Format) oder tests (Legacy-Format)
+    raw_tests = cfg.get("smoke_tests") or cfg.get("tests") or []
 
     results = []
     all_ok = True
 
-    for test in tests:
+    for test in raw_tests:
         path = test.get("path", "/")
-        url = base_url.rstrip("/") + path
+        url = base_url.rstrip("/") + path if base_url else path
         check = await _check_endpoint(url)
         check["name"] = test.get("name", path)
         check["stage"] = test.get("stage", "A")
@@ -81,8 +90,9 @@ async def _get_staging_status(cfg: dict) -> dict:
         results.append(check)
 
     # Wenn keine Tests konfiguriert, /health als Default
-    if not tests and base_url:
-        check = await _check_endpoint(base_url.rstrip("/") + "/health")
+    if not results and base_url:
+        health_path = cfg.get("health_endpoint", "/health")
+        check = await _check_endpoint(base_url.rstrip("/") + health_path)
         check["name"] = "health"
         check["stage"] = "A"
         if not check["ok"]:
@@ -97,7 +107,7 @@ async def _get_staging_status(cfg: dict) -> dict:
         "repo": repo_name,
         "github_repo": github_repo,
         "base_url": base_url,
-        "port": cfg.get("port"),
+        "port": cfg.get("staging_port") or cfg.get("port"),
         "status": overall,
         "tests": results,
         "checked_at": datetime.now(timezone.utc).isoformat(),
@@ -135,7 +145,7 @@ async def get_staging_detail(repo_name: str):
     configs = _load_staging_configs()
     cfg = next(
         (c for c in configs
-         if (c.get("repo_name") or c.get("_config_file", "").replace(".yaml", "")) == repo_name),
+         if (c.get("repo") or c.get("repo_name") or c.get("_config_file", "").replace(".yaml", "")) == repo_name),
         None
     )
     if not cfg:
