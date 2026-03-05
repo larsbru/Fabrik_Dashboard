@@ -117,158 +117,191 @@ function BacklogSection({ section }) {
 
 // ── Inbox / IDEA-Karten ───────────────────────────────────────────────────────
 
+const PRIO_STYLE = {
+  hoch:    { bg: '#fee2e233', color: '#f87171', label: '🔴 Hoch' },
+  mittel:  { bg: '#fef9c333', color: '#fbbf24', label: '🟡 Mittel' },
+  niedrig: { bg: '#f0fdf433', color: '#4ade80', label: '🟢 Niedrig' },
+};
+
+function InfoRow({ label, value, color }) {
+  if (!value || value === 'keiner' || value === 'false' || value === false) return null;
+  return (
+    <div style={{ display: 'flex', gap: 8, padding: '5px 0',
+      borderBottom: '1px solid #ffffff08', alignItems: 'flex-start' }}>
+      <span style={{ fontSize: '0.65rem', color: '#6b7280', minWidth: 110, flexShrink: 0,
+        textTransform: 'uppercase', letterSpacing: '0.04em', paddingTop: 1 }}>{label}</span>
+      <span style={{ fontSize: '0.75rem', color: color || '#c9d1d9', lineHeight: 1.4, flex: 1 }}>
+        {value}
+      </span>
+    </div>
+  );
+}
+
 function IdeaCard({ idea, onAction, actionLoading }) {
   const [expanded, setExpanded] = useState(false);
   const [rejectText, setRejectText] = useState('');
   const [showReject, setShowReject] = useState(false);
   const cfg = STATUS_CONFIG[idea.status] || STATUS_CONFIG['neu'];
   const isPending = idea.status === 'neu' || idea.status === 'analysiert';
+  const prio = PRIO_STYLE[idea.prioritaet] || PRIO_STYLE['mittel'];
 
   return (
     <div style={{
       background: 'var(--bg-card, #141824)',
       border: `1px solid ${cfg.color}33`,
       borderLeft: `3px solid ${cfg.color}`,
-      borderRadius: 6, padding: '8px 10px', marginBottom: 6, cursor: 'pointer',
-    }}
-      onClick={() => !showReject && setExpanded(v => !v)}
-    >
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
-        <span style={{ fontSize: '0.8rem' }}>{cfg.icon}</span>
-        <span style={{ fontSize: '0.65rem', color: '#6b7280', fontFamily: 'monospace', flexShrink: 0 }}>
-          {idea.eingang?.slice(0, 10) || ''}
-        </span>
-        {idea.b_nummer && <Badge text={idea.b_nummer} color="#3b82f6" />}
-        <Badge text={cfg.label} color={cfg.color} />
-        {idea.kategorie && <Badge text={idea.kategorie} color="#8b5cf6" />}
-        {!idea.analyse_ok && <Badge text="⚠ Analyse fehlt" color="#f59e0b" />}
-        {expanded ? <ChevronDown size={10} style={{ marginLeft: 'auto', color: '#6b7280' }} />
-                  : <ChevronRight size={10} style={{ marginLeft: 'auto', color: '#6b7280' }} />}
-      </div>
-      <div style={{ fontSize: '0.8rem', color: 'var(--text-primary, #e2e8f0)', lineHeight: 1.3 }}>
-        {idea.titel}
+      borderRadius: 6, marginBottom: 8, overflow: 'hidden',
+    }}>
+
+      {/* ── Header (immer sichtbar, klickbar) ── */}
+      <div style={{ padding: '10px 12px', cursor: 'pointer', display: 'flex',
+        flexDirection: 'column', gap: 4 }}
+        onClick={() => !showReject && setExpanded(v => !v)}>
+
+        {/* Zeile 1: Badges */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 5 }}>
+          <span style={{ fontSize: '0.8rem' }}>{cfg.icon}</span>
+          <span style={{ fontSize: '0.65rem', color: '#4b5563', flexShrink: 0 }}>
+            {idea.eingang?.slice(0, 10) || ''}
+          </span>
+          <Badge text={cfg.label} color={cfg.color} />
+          {idea.prioritaet && (
+            <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '1px 6px',
+              borderRadius: 4, background: prio.bg, color: prio.color }}>
+              {prio.label}
+            </span>
+          )}
+          {idea.kategorie && <Badge text={idea.kategorie} color="#8b5cf6" />}
+          {idea.b_nummer && <Badge text={idea.b_nummer} color="#3b82f6" />}
+          {idea.ssot_relevanz === true && <Badge text="SSOT" color="#f59e0b" />}
+          {!idea.analyse_ok && <Badge text="⚠ re-analyse läuft" color="#6b7280" />}
+          <span style={{ marginLeft: 'auto', flexShrink: 0 }}>
+            {expanded ? <ChevronDown size={12} style={{ color: '#6b7280' }} />
+                      : <ChevronRight size={12} style={{ color: '#6b7280' }} />}
+          </span>
+        </div>
+
+        {/* Zeile 2: Titel */}
+        <div style={{ fontSize: '0.85rem', fontWeight: 600,
+          color: 'var(--text-primary, #e2e8f0)', lineHeight: 1.3 }}>
+          {idea.titel}
+        </div>
+
+        {/* Zeile 3: Zusammenfassung (immer sichtbar – kurz) */}
+        {idea.beschreibung && !idea.beschreibung.includes('fehlgeschlagen') && (
+          <div style={{ fontSize: '0.72rem', color: '#9ca3af', lineHeight: 1.4,
+            display: '-webkit-box', WebkitLineClamp: expanded ? 'unset' : 2,
+            WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+            {idea.beschreibung}
+          </div>
+        )}
       </div>
 
+      {/* ── Ausgeklappte Detailansicht (Entscheidungsvorlage) ── */}
       {expanded && (
-        <div style={{ borderTop: '1px solid #ffffff11', paddingTop: 8, marginTop: 6 }}>
+        <div style={{ borderTop: '1px solid #ffffff11', padding: '10px 12px' }}
+          onClick={e => e.stopPropagation()}>
+
+          {/* Volltext Zusammenfassung */}
           {idea.beschreibung && !idea.beschreibung.includes('fehlgeschlagen') && (
-            <p style={{ fontSize: '0.72rem', color: '#9ca3af', margin: '0 0 8px', lineHeight: 1.4 }}>
-              {idea.beschreibung}
-            </p>
-          )}
-          {!idea.analyse_ok && (
-            <div style={{ fontSize: '0.7rem', color: '#f59e0b', margin: '0 0 8px',
-              padding: '4px 8px', background: '#f59e0b11', borderRadius: 4,
-              border: '1px solid #f59e0b33' }}>
-              ⚠ Ollama-Analyse ist fehlgeschlagen — bitte extracted.md manuell prüfen
+            <div style={{ marginBottom: 10, padding: '8px 10px',
+              background: '#0f172a', borderRadius: 6, borderLeft: '3px solid #3b82f6' }}>
+              <div style={{ fontSize: '0.6rem', color: '#6b7280', textTransform: 'uppercase',
+                letterSpacing: '0.05em', marginBottom: 4 }}>Zusammenfassung (Opus)</div>
+              <div style={{ fontSize: '0.78rem', color: '#c9d1d9', lineHeight: 1.5 }}>
+                {idea.beschreibung}
+              </div>
             </div>
           )}
 
-          {/* Gardener-Metadaten */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
-            {idea.vorgeschlagene_aktion && (
-              <span style={{ fontSize: '0.65rem', padding: '2px 7px', borderRadius: 4,
-                background: '#3b82f611', color: '#93c5fd', border: '1px solid #3b82f622' }}>
-                Aktion: {idea.vorgeschlagene_aktion}
-              </span>
-            )}
-            {idea.dedup_empfehlung && (
-              <span style={{ fontSize: '0.65rem', padding: '2px 7px', borderRadius: 4,
-                background: '#8b5cf611', color: '#c4b5fd', border: '1px solid #8b5cf622' }}>
-                Dedup: {idea.dedup_empfehlung}
-              </span>
-            )}
-            {idea.bezug_zu_backlog && idea.bezug_zu_backlog !== 'keiner' && (
-              <span style={{ fontSize: '0.65rem', padding: '2px 7px', borderRadius: 4,
-                background: '#22c55e11', color: '#86efac', border: '1px solid #22c55e22' }}>
-                Bezug: {idea.bezug_zu_backlog}
-              </span>
+          {/* Strukturierte Fakten */}
+          <div style={{ marginBottom: 10 }}>
+            <InfoRow label="Vorgeschlagene Aktion" value={idea.vorgeschlagene_aktion} color="#93c5fd" />
+            <InfoRow label="Bezug zu Backlog" value={idea.bezug_zu_backlog} color="#86efac" />
+            <InfoRow label="SSOT-Relevant" value={idea.ssot_relevanz === true ? 'Ja – betrifft Fabrik-Architektur' : null} color="#fbbf24" />
+            <InfoRow label="Komponenten" value={idea.betroffene_komponenten?.join(', ')} color="#c4b5fd" />
+            <InfoRow label="Dedup-Check" value={idea.dedup_empfehlung} color="#94a3b8" />
+            {idea.notizen && idea.notizen.trim() && !idea.notizen.includes('Parse-Fehler') && (
+              <InfoRow label="Notizen / Risiken" value={idea.notizen} color="#fca5a5" />
             )}
           </div>
 
-          {idea.begruendung && (
-            <p style={{ fontSize: '0.7rem', color: '#6b7280', margin: '0 0 8px', fontStyle: 'italic' }}>
-              {idea.begruendung}
-            </p>
+          {/* Analyse-Warnung */}
+          {!idea.analyse_ok && (
+            <div style={{ fontSize: '0.72rem', color: '#fbbf24', marginBottom: 10,
+              padding: '6px 10px', background: '#fbbf2411', borderRadius: 5,
+              border: '1px solid #fbbf2433' }}>
+              ⏳ Neu-Analyse via Opus läuft — Zusammenfassung noch nicht verfügbar.
+              Refresh in ~2 Min.
+            </div>
+          )}
+
+          {/* Bereits entschieden */}
+          {!isPending && (
+            <div style={{ fontSize: '0.72rem', padding: '6px 10px', borderRadius: 5,
+              background: cfg.color + '11', color: cfg.color,
+              border: `1px solid ${cfg.color}33`, marginBottom: 8 }}>
+              {cfg.icon} {cfg.label}
+              {idea.b_nummer && ` → ${idea.b_nummer}`}
+              {idea.begruendung && ` — ${idea.begruendung}`}
+            </div>
           )}
 
           {/* CEO-Aktionen */}
           {isPending && !showReject && (
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              <button
-                onClick={e => { e.stopPropagation(); onAction(idea.id, 'approve', {}); }}
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', paddingTop: 6,
+              borderTop: '1px solid #ffffff11' }}>
+              <button onClick={() => onAction(idea.id, 'approve', {})}
                 disabled={actionLoading === idea.id}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 4,
-                  fontSize: '0.7rem', color: '#22c55e', cursor: 'pointer',
-                  padding: '3px 8px', borderRadius: 4,
+                style={{ display: 'flex', alignItems: 'center', gap: 5,
+                  fontSize: '0.78rem', fontWeight: 600, color: '#22c55e',
+                  padding: '6px 14px', borderRadius: 5,
                   border: '1px solid #22c55e44', background: '#22c55e11',
-                  opacity: actionLoading === idea.id ? 0.5 : 1,
-                }}
-              >
-                <Check size={10} /> Approve
+                  cursor: 'pointer', opacity: actionLoading === idea.id ? 0.5 : 1 }}>
+                <Check size={12} /> Approve
               </button>
-              <button
-                onClick={e => { e.stopPropagation(); setShowReject(true); }}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 4,
-                  fontSize: '0.7rem', color: '#ef4444', cursor: 'pointer',
-                  padding: '3px 8px', borderRadius: 4,
+              <button onClick={() => setShowReject(true)}
+                style={{ display: 'flex', alignItems: 'center', gap: 5,
+                  fontSize: '0.78rem', fontWeight: 600, color: '#ef4444',
+                  padding: '6px 14px', borderRadius: 5,
                   border: '1px solid #ef444444', background: '#ef444411',
-                }}
-              >
-                <X size={10} /> Reject
+                  cursor: 'pointer' }}>
+                <X size={12} /> Reject
               </button>
-              <button
-                onClick={e => { e.stopPropagation(); onAction(idea.id, 'defer', {}); }}
+              <button onClick={() => onAction(idea.id, 'defer', {})}
                 disabled={actionLoading === idea.id}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 4,
-                  fontSize: '0.7rem', color: '#f59e0b', cursor: 'pointer',
-                  padding: '3px 8px', borderRadius: 4,
+                style={{ display: 'flex', alignItems: 'center', gap: 5,
+                  fontSize: '0.78rem', fontWeight: 600, color: '#f59e0b',
+                  padding: '6px 14px', borderRadius: 5,
                   border: '1px solid #f59e0b44', background: '#f59e0b11',
-                  opacity: actionLoading === idea.id ? 0.5 : 1,
-                }}
-              >
-                <Pause size={10} /> Defer
+                  cursor: 'pointer', opacity: actionLoading === idea.id ? 0.5 : 1 }}>
+                <Pause size={12} /> Defer
               </button>
             </div>
           )}
 
           {/* Reject-Formular */}
           {showReject && (
-            <div style={{ marginTop: 6 }} onClick={e => e.stopPropagation()}>
-              <input
-                autoFocus
-                placeholder="Begründung..."
-                value={rejectText}
-                onChange={e => setRejectText(e.target.value)}
-                style={{
-                  width: '100%', padding: '4px 8px', borderRadius: 4, fontSize: '0.75rem',
-                  background: '#1a1f2e', border: '1px solid #ef444444', color: '#e2e8f0',
-                  outline: 'none', marginBottom: 6, boxSizing: 'border-box',
-                }}
-              />
-              <div style={{ display: 'flex', gap: 6 }}>
-                <button
-                  onClick={() => { onAction(idea.id, 'reject', { begruendung: rejectText }); setShowReject(false); }}
-                  style={{
-                    fontSize: '0.7rem', color: '#ef4444', cursor: 'pointer',
-                    padding: '3px 8px', borderRadius: 4,
-                    border: '1px solid #ef444444', background: '#ef444411',
-                  }}
-                >
-                  Bestätigen
+            <div style={{ paddingTop: 6, borderTop: '1px solid #ffffff11' }}>
+              <div style={{ fontSize: '0.72rem', color: '#9ca3af', marginBottom: 6 }}>
+                Begründung für Ablehnung:
+              </div>
+              <input autoFocus placeholder="z.B. bereits in B22 abgedeckt, zu früh, nicht relevant..."
+                value={rejectText} onChange={e => setRejectText(e.target.value)}
+                style={{ width: '100%', padding: '6px 10px', borderRadius: 5, fontSize: '0.78rem',
+                  background: '#0f172a', border: '1px solid #ef444444', color: '#e2e8f0',
+                  outline: 'none', marginBottom: 8, boxSizing: 'border-box' }} />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={() => { onAction(idea.id, 'reject', { begruendung: rejectText }); setShowReject(false); }}
+                  style={{ fontSize: '0.78rem', fontWeight: 600, color: '#ef4444',
+                    padding: '5px 12px', borderRadius: 5,
+                    border: '1px solid #ef444444', background: '#ef444411', cursor: 'pointer' }}>
+                  Ablehnen bestätigen
                 </button>
-                <button
-                  onClick={() => setShowReject(false)}
-                  style={{
-                    fontSize: '0.7rem', color: '#6b7280', cursor: 'pointer',
-                    padding: '3px 8px', borderRadius: 4,
-                    border: '1px solid #ffffff22', background: 'transparent',
-                  }}
-                >
+                <button onClick={() => setShowReject(false)}
+                  style={{ fontSize: '0.78rem', color: '#6b7280',
+                    padding: '5px 12px', borderRadius: 5,
+                    border: '1px solid #ffffff22', background: 'transparent', cursor: 'pointer' }}>
                   Abbrechen
                 </button>
               </div>

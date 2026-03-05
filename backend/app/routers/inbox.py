@@ -258,7 +258,7 @@ def _read_ideas() -> list[dict]:
 
             ideas.append({
                 "filename": f"{name}/draft.yaml",
-                "id": name,                          # folder-name als ID
+                "id": name,
                 "titel": data.get("titel") or data.get("title") or slug.replace("-", " ").title(),
                 "beschreibung": data.get("zusammenfassung") or data.get("beschreibung") or "",
                 "status": status,
@@ -269,7 +269,11 @@ def _read_ideas() -> list[dict]:
                 "kategorie": data.get("kategorie") or "",
                 "vorgeschlagene_aktion": data.get("vorgeschlagene_aktion") or "",
                 "bezug_zu_backlog": data.get("bezug_zu_backlog") or "",
-                "analyse_ok": "Analyse fehlgeschlagen" not in (data.get("zusammenfassung") or ""),
+                "betroffene_komponenten": data.get("betroffene_komponenten") or [],
+                "notizen": data.get("notizen") or "",
+                "ssot_relevanz": data.get("ssot_relevanz") or False,
+                "analyse_ok": "Analyse fehlgeschlagen" not in (data.get("zusammenfassung") or "")
+                              and meta.get("modell") not in ("PENDING-OPUS", None, ""),
                 "dedup_empfehlung": gardener.get("dedup_ergebnis", {}).get("empfehlung") or "",
             })
         except Exception as e:
