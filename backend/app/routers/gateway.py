@@ -43,6 +43,23 @@ async def get_gateway_metrics():
         }
 
 
+@router.get("/history")
+async def get_gateway_history(hours: int = 24, limit: int = 288):
+    """Proxy Gateway /history – time-series of metrics snapshots."""
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get(
+                f"{settings.fabrik_gateway_url}/history",
+                params={"hours": hours, "limit": limit},
+                headers=_headers(),
+            )
+            resp.raise_for_status()
+            return resp.json()
+    except Exception as exc:
+        log.warning("Gateway history unavailable: %s", exc)
+        return []
+
+
 @router.get("/health")
 async def get_gateway_health():
     """Proxy Gateway /health endpoint."""

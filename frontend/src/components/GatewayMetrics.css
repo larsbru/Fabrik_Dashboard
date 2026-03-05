@@ -112,6 +112,37 @@
   color: var(--text-muted, #888);
 }
 
+/* Chart */
+.gw-chart-section {
+  border-top: 1px solid var(--border-color, #2a2a4a);
+  padding-top: 12px;
+  margin-bottom: 12px;
+}
+
+.gw-chart-wrap {
+  margin-top: 8px;
+}
+
+.gw-chart-empty {
+  font-size: 11px;
+  color: var(--text-muted, #888);
+  padding: 12px 0;
+  text-align: center;
+  border-top: 1px solid var(--border-color, #2a2a4a);
+  margin-bottom: 12px;
+}
+
+.gw-chart-legend {
+  display: flex;
+  gap: 16px;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
+.gw-legend-item {
+  font-size: 10px;
+}
+
 /* Callers */
 .gw-callers-section {
   border-top: 1px solid var(--border-color, #2a2a4a);

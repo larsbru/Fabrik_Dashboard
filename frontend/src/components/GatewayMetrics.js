@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Activity, Zap, Database, Clock, AlertCircle, CheckCircle } from 'lucide-react';
+import {
+  LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine
+} from 'recharts';
 import { useApi } from '../hooks/useApi';
 import './GatewayMetrics.css';
 
@@ -34,20 +37,111 @@ function CallerRow({ caller, count, total }) {
   );
 }
 
+function HistoryChart({ data }) {
+  if (!data || data.length < 2) {
+    return (
+      <div className="gw-chart-empty">
+        Noch keine History-Daten (werden alle 5 Min gespeichert)
+      </div>
+    );
+  }
+
+  // Newest first → reverse for chronological display
+  const chartData = [...data].reverse().map(d => ({
+    time: new Date(d.ts).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }),
+    rate_limit: d.rate_limit_remaining,
+    calls_hour: d.github_calls_hour,
+  }));
+
+  const hasRateLimit = chartData.some(d => d.rate_limit !== null);
+
+  return (
+    <div className="gw-chart-section">
+      <h4 className="gw-callers-title">Rate-Limit Verlauf (letzte 24h)</h4>
+      <div className="gw-chart-wrap">
+        <ResponsiveContainer width="100%" height={120}>
+          <LineChart data={chartData} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
+            <XAxis
+              dataKey="time"
+              tick={{ fill: 'var(--text-muted, #888)', fontSize: 9 }}
+              tickLine={false}
+              axisLine={false}
+              interval="preserveStartEnd"
+            />
+            <YAxis
+              tick={{ fill: 'var(--text-muted, #888)', fontSize: 9 }}
+              tickLine={false}
+              axisLine={false}
+              domain={hasRateLimit ? [0, 5000] : ['auto', 'auto']}
+            />
+            <Tooltip
+              contentStyle={{
+                background: 'var(--bg-card, #1a1a2e)',
+                border: '1px solid var(--border-color, #2a2a4a)',
+                borderRadius: 4,
+                fontSize: 11,
+                color: 'var(--text-primary, #e0e0ff)',
+              }}
+              formatter={(val, name) => [
+                val ?? '—',
+                name === 'rate_limit' ? 'Rate-Limit' : 'Calls/h',
+              ]}
+            />
+            {hasRateLimit && (
+              <ReferenceLine y={1000} stroke="rgba(248,113,113,0.3)" strokeDasharray="3 3" />
+            )}
+            {hasRateLimit && (
+              <Line
+                type="monotone"
+                dataKey="rate_limit"
+                stroke="var(--accent-green, #4ade80)"
+                strokeWidth={1.5}
+                dot={false}
+                connectNulls={false}
+              />
+            )}
+            <Line
+              type="monotone"
+              dataKey="calls_hour"
+              stroke="var(--accent-cyan, #22d3ee)"
+              strokeWidth={1.5}
+              dot={false}
+              connectNulls={false}
+            />
+          </LineChart>
+        </ResponsiveContainer>
+        <div className="gw-chart-legend">
+          {hasRateLimit && (
+            <span className="gw-legend-item" style={{ color: 'var(--accent-green)' }}>
+              ─ Rate-Limit
+            </span>
+          )}
+          <span className="gw-legend-item" style={{ color: 'var(--accent-cyan)' }}>
+            ─ Calls/h
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function GatewayMetrics() {
   const { get } = useApi();
   const [metrics, setMetrics] = useState(null);
   const [health, setHealth] = useState(null);
+  const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [lastFetch, setLastFetch] = useState(null);
 
   const fetchMetrics = useCallback(async () => {
-    const [m, h] = await Promise.all([
+    const [m, h, hist] = await Promise.all([
       get('/api/gateway/metrics'),
       get('/api/gateway/health'),
+      get('/api/gateway/history?hours=24&limit=288'),
     ]);
     if (m) setMetrics(m);
     if (h) setHealth(h);
+    if (hist) setHistory(hist);
     setLastFetch(new Date());
     setLoading(false);
   }, [get]);
@@ -67,16 +161,14 @@ function GatewayMetrics() {
     );
   }
 
-  const byCaller = metrics?.db_stats_1h?.by_caller || metrics?.by_caller || {};
+  const byCaller = metrics?.db_stats_1h?.by_caller || {};
   const totalCalls = metrics?.github_calls_total || 0;
   const cacheHits = metrics?.cache_hits_total || 0;
   const callerEntries = Object.entries(byCaller).sort((a, b) => b[1] - a[1]);
-
   const stats1h = metrics?.db_stats_1h || {};
   const rateLimitPct = metrics?.rate_limit_remaining != null
     ? Math.round((metrics.rate_limit_remaining / 5000) * 100)
     : null;
-
   const isReachable = health?.reachable !== false && !metrics?.error;
 
   return (
@@ -136,6 +228,8 @@ function GatewayMetrics() {
           subtitle={metrics?.backoff_active ? '⚠ Backoff aktiv' : 'normal'}
         />
       </div>
+
+      <HistoryChart data={history} />
 
       {callerEntries.length > 0 && (
         <div className="gw-callers-section">
