@@ -136,10 +136,13 @@ function IdeaCard({ idea, onAction, actionLoading }) {
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
         <span style={{ fontSize: '0.8rem' }}>{cfg.icon}</span>
-        <span style={{ fontSize: '0.65rem', color: '#6b7280', fontFamily: 'monospace' }}>{idea.id}</span>
+        <span style={{ fontSize: '0.65rem', color: '#6b7280', fontFamily: 'monospace', flexShrink: 0 }}>
+          {idea.eingang?.slice(0, 10) || ''}
+        </span>
         {idea.b_nummer && <Badge text={idea.b_nummer} color="#3b82f6" />}
         <Badge text={cfg.label} color={cfg.color} />
         {idea.kategorie && <Badge text={idea.kategorie} color="#8b5cf6" />}
+        {!idea.analyse_ok && <Badge text="⚠ Analyse fehlt" color="#f59e0b" />}
         {expanded ? <ChevronDown size={10} style={{ marginLeft: 'auto', color: '#6b7280' }} />
                   : <ChevronRight size={10} style={{ marginLeft: 'auto', color: '#6b7280' }} />}
       </div>
@@ -149,19 +152,44 @@ function IdeaCard({ idea, onAction, actionLoading }) {
 
       {expanded && (
         <div style={{ borderTop: '1px solid #ffffff11', paddingTop: 8, marginTop: 6 }}>
-          {idea.beschreibung && (
+          {idea.beschreibung && !idea.beschreibung.includes('fehlgeschlagen') && (
             <p style={{ fontSize: '0.72rem', color: '#9ca3af', margin: '0 0 8px', lineHeight: 1.4 }}>
               {idea.beschreibung}
             </p>
           )}
+          {!idea.analyse_ok && (
+            <div style={{ fontSize: '0.7rem', color: '#f59e0b', margin: '0 0 8px',
+              padding: '4px 8px', background: '#f59e0b11', borderRadius: 4,
+              border: '1px solid #f59e0b33' }}>
+              ⚠ Ollama-Analyse ist fehlgeschlagen — bitte extracted.md manuell prüfen
+            </div>
+          )}
+
+          {/* Gardener-Metadaten */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+            {idea.vorgeschlagene_aktion && (
+              <span style={{ fontSize: '0.65rem', padding: '2px 7px', borderRadius: 4,
+                background: '#3b82f611', color: '#93c5fd', border: '1px solid #3b82f622' }}>
+                Aktion: {idea.vorgeschlagene_aktion}
+              </span>
+            )}
+            {idea.dedup_empfehlung && (
+              <span style={{ fontSize: '0.65rem', padding: '2px 7px', borderRadius: 4,
+                background: '#8b5cf611', color: '#c4b5fd', border: '1px solid #8b5cf622' }}>
+                Dedup: {idea.dedup_empfehlung}
+              </span>
+            )}
+            {idea.bezug_zu_backlog && idea.bezug_zu_backlog !== 'keiner' && (
+              <span style={{ fontSize: '0.65rem', padding: '2px 7px', borderRadius: 4,
+                background: '#22c55e11', color: '#86efac', border: '1px solid #22c55e22' }}>
+                Bezug: {idea.bezug_zu_backlog}
+              </span>
+            )}
+          </div>
+
           {idea.begruendung && (
             <p style={{ fontSize: '0.7rem', color: '#6b7280', margin: '0 0 8px', fontStyle: 'italic' }}>
-              Begründung: {idea.begruendung}
-            </p>
-          )}
-          {idea.eingang && (
-            <p style={{ fontSize: '0.65rem', color: '#4b5563', margin: '0 0 8px' }}>
-              Eingang: {idea.eingang?.slice(0, 10)}
+              {idea.begruendung}
             </p>
           )}
 

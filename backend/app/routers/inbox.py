@@ -231,29 +231,49 @@ async def get_backlog():
 # ── IDEA-YAML Endpoints ───────────────────────────────────────────────────────
 
 def _read_ideas() -> list[dict]:
-    """Alle IDEA-*.yaml aus backlog/ideas/ lesen."""
-    if not IDEAS_DIR.exists():
+    """Alle draft.yaml aus inbox_processed/ lesen — das ist die echte Inbox."""
+    if not INBOX_PROCESSED_DIR.exists():
         return []
     ideas = []
-    for f in sorted(IDEAS_DIR.glob("IDEA-*.yaml"), reverse=True):
+    folders = sorted(
+        [d for d in INBOX_PROCESSED_DIR.iterdir() if d.is_dir() and not d.name.startswith(".")],
+        reverse=True,
+    )
+    for folder in folders:
+        draft = folder / "draft.yaml"
+        if not draft.exists():
+            continue
         try:
-            data = _safe_yaml(f)
+            data = _safe_yaml(draft)
             if not data:
                 continue
+            name = folder.name
+            m = re.match(r"^(\d{4}-\d{2}-\d{2})_(.*)", name)
+            date_str = m.group(1) if m else ""
+            slug = m.group(2) if m else name
+
+            meta = data.get("_meta", {})
+            gardener = data.get("_gardener", {})
+            status = meta.get("status") or data.get("status") or "neu"
+
             ideas.append({
-                "filename": f.name,
-                "id": f.stem,
-                "titel": data.get("titel") or data.get("title") or f.stem,
-                "beschreibung": data.get("beschreibung") or data.get("description") or "",
-                "status": data.get("status") or "neu",
-                "prioritaet": data.get("prioritaet") or data.get("priority") or "",
+                "filename": f"{name}/draft.yaml",
+                "id": name,                          # folder-name als ID
+                "titel": data.get("titel") or data.get("title") or slug.replace("-", " ").title(),
+                "beschreibung": data.get("zusammenfassung") or data.get("beschreibung") or "",
+                "status": status,
+                "prioritaet": data.get("prioritaet_vorschlag") or data.get("prioritaet") or "",
                 "b_nummer": data.get("b_nummer") or data.get("backlog_ref") or "",
-                "eingang": data.get("eingang") or data.get("created_at") or "",
-                "begruendung": data.get("begruendung") or data.get("reason") or "",
-                "kategorie": data.get("kategorie") or data.get("category") or "",
+                "eingang": date_str,
+                "begruendung": data.get("begruendung") or "",
+                "kategorie": data.get("kategorie") or "",
+                "vorgeschlagene_aktion": data.get("vorgeschlagene_aktion") or "",
+                "bezug_zu_backlog": data.get("bezug_zu_backlog") or "",
+                "analyse_ok": "Analyse fehlgeschlagen" not in (data.get("zusammenfassung") or ""),
+                "dedup_empfehlung": gardener.get("dedup_ergebnis", {}).get("empfehlung") or "",
             })
         except Exception as e:
-            logger.warning("Could not parse idea %s: %s", f.name, e)
+            logger.warning("Could not parse draft %s: %s", folder.name, e)
     return ideas
 
 
@@ -264,6 +284,11 @@ def _next_b_nummer() -> str:
     text = BACKLOG_PATH.read_text(encoding="utf-8")
     nums = [int(m) for m in re.findall(r'\bB(\d+)\b', text)]
     return f"B{max(nums) + 1}" if nums else "B01"
+
+
+def _idea_draft_path(idea_id: str) -> Path:
+    """Gibt den draft.yaml-Pfad für eine idea_id zurück."""
+    return INBOX_PROCESSED_DIR / idea_id / "draft.yaml"
 
 
 class ApproveRequest(BaseModel):
@@ -287,62 +312,52 @@ async def list_ideas():
 
 @router.post("/ideas/{idea_id}/approve")
 async def approve_idea(idea_id: str, req: ApproveRequest):
-    """CEO-Aktion: Idee genehmigen, B-Nummer vergeben, status=approved."""
-    path = IDEAS_DIR / f"{idea_id}.yaml"
+    path = _idea_draft_path(idea_id)
     if not path.exists():
-        raise HTTPException(status_code=404, detail=f"Idea {idea_id} nicht gefunden")
-
+        raise HTTPException(status_code=404, detail=f"Draft für {idea_id} nicht gefunden")
     data = _safe_yaml(path)
     b_num = req.b_nummer.strip() or _next_b_nummer()
-
-    data["status"] = "approved"
+    data.setdefault("_meta", {})["status"] = "approved"
     data["b_nummer"] = b_num
+    data["status"] = "approved"
     if req.notiz:
         data["ceo_notiz"] = req.notiz
     data["approved_at"] = datetime.utcnow().isoformat()
-
     with open(path, "w", encoding="utf-8") as f:
         yaml.dump(data, f, allow_unicode=True, default_flow_style=False)
-
-    logger.info("CEO approved idea %s → %s", idea_id, b_num)
+    logger.info("CEO approved %s → %s", idea_id, b_num)
     return {"status": "approved", "idea_id": idea_id, "b_nummer": b_num}
 
 
 @router.post("/ideas/{idea_id}/reject")
 async def reject_idea(idea_id: str, req: RejectRequest):
-    """CEO-Aktion: Idee ablehnen."""
-    path = IDEAS_DIR / f"{idea_id}.yaml"
+    path = _idea_draft_path(idea_id)
     if not path.exists():
-        raise HTTPException(status_code=404, detail=f"Idea {idea_id} nicht gefunden")
-
+        raise HTTPException(status_code=404, detail=f"Draft für {idea_id} nicht gefunden")
     data = _safe_yaml(path)
+    data.setdefault("_meta", {})["status"] = "rejected"
     data["status"] = "rejected"
     data["begruendung"] = req.begruendung
     data["rejected_at"] = datetime.utcnow().isoformat()
-
     with open(path, "w", encoding="utf-8") as f:
         yaml.dump(data, f, allow_unicode=True, default_flow_style=False)
-
-    logger.info("CEO rejected idea %s: %s", idea_id, req.begruendung[:80])
+    logger.info("CEO rejected %s: %s", idea_id, req.begruendung[:80])
     return {"status": "rejected", "idea_id": idea_id}
 
 
 @router.post("/ideas/{idea_id}/defer")
 async def defer_idea(idea_id: str, req: DeferRequest):
-    """CEO-Aktion: Idee zurückstellen."""
-    path = IDEAS_DIR / f"{idea_id}.yaml"
+    path = _idea_draft_path(idea_id)
     if not path.exists():
-        raise HTTPException(status_code=404, detail=f"Idea {idea_id} nicht gefunden")
-
+        raise HTTPException(status_code=404, detail=f"Draft für {idea_id} nicht gefunden")
     data = _safe_yaml(path)
+    data.setdefault("_meta", {})["status"] = "deferred"
     data["status"] = "deferred"
     if req.notiz:
         data["ceo_notiz"] = req.notiz
     data["deferred_at"] = datetime.utcnow().isoformat()
-
     with open(path, "w", encoding="utf-8") as f:
         yaml.dump(data, f, allow_unicode=True, default_flow_style=False)
-
-    logger.info("CEO deferred idea %s", idea_id)
+    logger.info("CEO deferred %s", idea_id)
     return {"status": "deferred", "idea_id": idea_id}
 
