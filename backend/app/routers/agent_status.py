@@ -81,8 +81,16 @@ ACTIVITY_PATTERNS = [
     (r"agent0:.*Plan.*#\d+", "📋 Plant Issue", "busy"),
     (r"agent0:.*Labels.*assigned:", "✅ Dispatched", "busy"),
     (r"agent0:.*Governance|agent0:.*FL|agent0:.*ADR|agent0:.*Feature-Map", "📚 Governance-Write", "busy"),
+    (r"agent0:.*Executor.*Scan", "⚙️ Executor läuft", "busy"),
     (r"agent0:.*Gefunden.*Issues", "🔍 Pollt Issues", "idle"),
     (r"agent0:.*repos.yaml", "⏳ Wartet auf Issues", "idle"),
+    # CI-Runner-spezifische Patterns
+    (r"Listening for Jobs", "⏳ Wartet auf Jobs", "idle"),
+    (r"Runner update process", "🔄 Runner-Update", "idle"),
+    (r"Connected to GitHub", "✅ Verbunden", "idle"),
+    (r"Job .+ completed with result: Succeeded", "✅ Letzter Job OK", "idle"),
+    (r"Job .+ completed with result: Failed", "❌ Letzter Job fehlgeschlagen", "error"),
+    (r"Running job:", "🔧 CI läuft", "busy"),
     # Coding / LLM aktiv
     (r"(call_opus|call_sonnet|Tier 2|claude.*running|Opus|Sonnet|Tier-2)", "🤖 LLM aktiv (Tier 2)", "active"),
     (r"(ollama|Tier 1|qwen|generating)", "⚙️ LLM aktiv (Tier 1)", "active"),
