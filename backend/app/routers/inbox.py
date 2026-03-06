@@ -652,3 +652,259 @@ async def reanalyze_all_status():
     """Status des laufenden oder letzten Batch-Reanalyze."""
     return {**_batch_reanalyze}
 
+
+
+# ── Lifecycle & Briefing Endpoints (B56) ──────────────────────────────────────
+
+BRIEFINGS_DIR = Path(os.environ.get("BRIEFINGS_DIR", "/app/fabrik/DevFabrik/management/briefings"))
+PREP_DIR = Path(os.environ.get("PREP_DIR", "/app/fabrik/DevFabrik/management/prep"))
+
+
+@router.get("/lifecycle")
+async def get_lifecycle():
+    """Aggregierter Status aller Items über alle 7 Lifecycle-Phasen."""
+    phases = {
+        "inbox": [],       # Phase 1: Dateien in ~/Documents/DevFabrik/inbox/
+        "analyse": [],     # Phase 2: Analyse läuft
+        "review": [],      # Phase 3: CEO-Review ausstehend
+        "briefing": [],    # Phase 4+5: Stabschef-Briefing + CEO-Freigabe
+        "umsetzung": [],   # Phase 6: Executor arbeitet
+        "erledigt": [],    # Phase 7: Done
+        "rejected": [],
+        "deferred": [],
+    }
+    counts = {k: 0 for k in phases}
+
+    # Phase 1: Inbox-Dateien
+    if INBOX_DIR.exists():
+        for f in sorted(INBOX_DIR.iterdir()):
+            if f.suffix in (".md", ".txt", ".pdf") and not f.name.startswith("."):
+                stat = f.stat()
+                phases["inbox"].append({
+                    "name": f.name,
+                    "size": stat.st_size,
+                    "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                })
+                counts["inbox"] += 1
+
+    # Phase 2-7: Alle draft.yaml durchgehen
+    if INBOX_PROCESSED_DIR.exists():
+        for folder in sorted(INBOX_PROCESSED_DIR.iterdir()):
+            draft = folder / "draft.yaml"
+            if not draft.exists():
+                continue
+            try:
+                data = _safe_yaml(draft)
+                if not data:
+                    continue
+                meta = data.get("_meta", {})
+                stab = data.get("_stabschef", {})
+                status = meta.get("status") or data.get("status") or "neu"
+                name = folder.name
+                m_date = re.match(r"^(\d{4}-\d{2}-\d{2})_(.*)", name)
+                item = {
+                    "id": name,
+                    "titel": data.get("titel") or data.get("title") or name,
+                    "status": status,
+                    "b_nummer": data.get("b_nummer") or "",
+                    "eingang": m_date.group(1) if m_date else "",
+                    "kategorie": data.get("kategorie") or "",
+                    "briefing_ref": stab.get("briefing_ref") or "",
+                    "verdict": stab.get("verdict") or "",
+                    "arbeitspakete": stab.get("arbeitspakete") or 0,
+                    "has_briefing": bool(stab.get("briefing_ref")),
+                    "analyse_ok": "fehlgeschlagen" not in (data.get("zusammenfassung") or ""),
+                }
+
+                # Tracking-Status laden (für Phase 5+6)
+                tracking_status = "vorbereitet"
+                idea_ref = stab.get("idea_ref") or ""
+                if idea_ref:
+                    tracking_path = PREP_DIR / idea_ref / "TRACKING.yaml"
+                    if tracking_path.exists():
+                        tracking = _safe_yaml(tracking_path)
+                        tracking_status = tracking.get("status") or "vorbereitet"
+                        item["tracking_status"] = tracking_status
+                        item["aps_vorbereitet"] = tracking.get("arbeitspakete_vorbereitet") or 0
+                        item["aps_erledigt"] = tracking.get("arbeitspakete_abgeschlossen") or 0
+                        item["aps_total"] = tracking.get("arbeitspakete_total") or 0
+
+                # Phase zuordnen
+                if status == "rejected":
+                    phases["rejected"].append(item)
+                    counts["rejected"] += 1
+                elif status == "deferred":
+                    phases["deferred"].append(item)
+                    counts["deferred"] += 1
+                elif status in ("neu", "analysiert") and not item["has_briefing"]:
+                    if not item["analyse_ok"]:
+                        phases["analyse"].append(item)
+                        counts["analyse"] += 1
+                    else:
+                        phases["review"].append(item)
+                        counts["review"] += 1
+                elif status == "approved" and item["has_briefing"]:
+                    if tracking_status in ("erledigt",):
+                        phases["erledigt"].append(item)
+                        counts["erledigt"] += 1
+                    elif tracking_status in ("in_umsetzung", "review_ausstehend"):
+                        phases["umsetzung"].append(item)
+                        counts["umsetzung"] += 1
+                    else:
+                        # vorbereitet oder freigegeben → Briefing-Phase
+                        phases["briefing"].append(item)
+                        counts["briefing"] += 1
+                elif status == "approved" and not item["has_briefing"]:
+                    # Approved aber Stabschef noch nicht gelaufen
+                    phases["briefing"].append(item)
+                    counts["briefing"] += 1
+                else:
+                    phases["review"].append(item)
+                    counts["review"] += 1
+            except Exception as e:
+                logger.warning("Lifecycle parse error %s: %s", folder.name, e)
+
+    return {"phases": phases, "counts": counts}
+
+
+@router.get("/briefings/{idea_id}")
+async def get_briefing(idea_id: str):
+    """Briefing-YAML für eine Idee lesen."""
+    # Finde briefing_ref aus draft.yaml
+    draft_path = _idea_draft_path(idea_id)
+    if not draft_path.exists():
+        raise HTTPException(status_code=404, detail=f"Draft für {idea_id} nicht gefunden")
+    data = _safe_yaml(draft_path)
+    stab = data.get("_stabschef", {})
+    briefing_ref = stab.get("briefing_ref")
+    if not briefing_ref:
+        return {"status": "no_briefing", "idea_id": idea_id}
+
+    briefing_path = BRIEFINGS_DIR / f"{briefing_ref}.yaml"
+    if not briefing_path.exists():
+        return {"status": "briefing_missing", "idea_id": idea_id, "ref": briefing_ref}
+
+    briefing = _safe_yaml(briefing_path)
+
+    # Tracking-Status laden
+    idea_ref = stab.get("idea_ref") or ""
+    tracking = {}
+    if idea_ref:
+        tracking_path = PREP_DIR / idea_ref / "TRACKING.yaml"
+        if tracking_path.exists():
+            tracking = _safe_yaml(tracking_path)
+
+    return {
+        "status": "ok",
+        "idea_id": idea_id,
+        "briefing": briefing,
+        "tracking": tracking,
+        "draft_status": data.get("status"),
+    }
+
+
+class ReleaseRequest(BaseModel):
+    ceo_antworten: dict = {}  # Antworten auf CEO-Fragen
+
+
+@router.post("/briefings/{idea_id}/release")
+async def release_for_execution(idea_id: str, req: ReleaseRequest):
+    """CEO gibt Briefing zur Umsetzung frei."""
+    draft_path = _idea_draft_path(idea_id)
+    if not draft_path.exists():
+        raise HTTPException(status_code=404, detail=f"Draft für {idea_id} nicht gefunden")
+    data = _safe_yaml(draft_path)
+    stab = data.get("_stabschef", {})
+    idea_ref = stab.get("idea_ref")
+    if not idea_ref:
+        raise HTTPException(status_code=422, detail="Kein Stabschef-Briefing vorhanden")
+
+    # TRACKING.yaml aktualisieren
+    tracking_path = PREP_DIR / idea_ref / "TRACKING.yaml"
+    if not tracking_path.exists():
+        raise HTTPException(status_code=422, detail=f"Keine Prep-Dateien für {idea_ref}")
+    tracking = _safe_yaml(tracking_path)
+    tracking["status"] = "freigegeben"
+    tracking["freigegeben_am"] = datetime.utcnow().isoformat()
+    if req.ceo_antworten:
+        tracking["ceo_antworten"] = req.ceo_antworten
+    # Alle APs auf freigegeben setzen
+    for ap_id, ap_status in tracking.get("paket_status", {}).items():
+        if isinstance(ap_status, dict) and ap_status.get("status") == "vorbereitet":
+            ap_status["status"] = "freigegeben"
+    with open(tracking_path, "w", encoding="utf-8") as f:
+        yaml.dump(tracking, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
+    logger.info("CEO released %s for execution", idea_id)
+    return {"status": "freigegeben", "idea_id": idea_id, "idea_ref": idea_ref}
+
+
+class AnswerRequest(BaseModel):
+    frage_index: int
+    antwort: str
+
+
+@router.post("/briefings/{idea_id}/answer")
+async def answer_ceo_question(idea_id: str, req: AnswerRequest):
+    """CEO beantwortet eine offene Frage im Briefing."""
+    draft_path = _idea_draft_path(idea_id)
+    if not draft_path.exists():
+        raise HTTPException(status_code=404, detail=f"Draft für {idea_id} nicht gefunden")
+    data = _safe_yaml(draft_path)
+    stab = data.get("_stabschef", {})
+    briefing_ref = stab.get("briefing_ref")
+    if not briefing_ref:
+        raise HTTPException(status_code=422, detail="Kein Briefing vorhanden")
+
+    briefing_path = BRIEFINGS_DIR / f"{briefing_ref}.yaml"
+    if not briefing_path.exists():
+        raise HTTPException(status_code=404, detail=f"Briefing {briefing_ref} nicht gefunden")
+    briefing = _safe_yaml(briefing_path)
+    fragen = briefing.get("ceo_fragen") or []
+    if req.frage_index >= len(fragen):
+        raise HTTPException(status_code=422, detail=f"Frage-Index {req.frage_index} ungültig")
+    fragen[req.frage_index]["ceo_antwort"] = req.antwort
+    fragen[req.frage_index]["beantwortet_am"] = datetime.utcnow().isoformat()
+    briefing["ceo_fragen"] = fragen
+    with open(briefing_path, "w", encoding="utf-8") as f:
+        yaml.dump(briefing, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
+    logger.info("CEO answered question %d for %s", req.frage_index, idea_id)
+    return {"status": "answered", "idea_id": idea_id, "frage_index": req.frage_index}
+
+
+@router.post("/briefings/{idea_id}/hold")
+async def hold_briefing(idea_id: str):
+    """CEO stellt Briefing zurück (deferred nach Review)."""
+    draft_path = _idea_draft_path(idea_id)
+    if not draft_path.exists():
+        raise HTTPException(status_code=404, detail=f"Draft für {idea_id} nicht gefunden")
+    data = _safe_yaml(draft_path)
+    data.setdefault("_meta", {})["status"] = "deferred"
+    data["status"] = "deferred"
+    data["deferred_at"] = datetime.utcnow().isoformat()
+    with open(draft_path, "w", encoding="utf-8") as f:
+        yaml.dump(data, f, allow_unicode=True, default_flow_style=False)
+    logger.info("CEO held briefing for %s", idea_id)
+    return {"status": "deferred", "idea_id": idea_id}
+
+
+@router.get("/executor/status")
+async def get_executor_status():
+    """Laufende Executor-Jobs (liest alle TRACKING.yaml mit status in_umsetzung)."""
+    jobs = []
+    if PREP_DIR.exists():
+        for tracking_path in PREP_DIR.glob("*/TRACKING.yaml"):
+            try:
+                tracking = _safe_yaml(tracking_path)
+                if tracking.get("status") in ("in_umsetzung", "freigegeben", "review_ausstehend"):
+                    jobs.append({
+                        "idea_ref": tracking.get("idea_ref") or tracking_path.parent.name,
+                        "briefing_ref": tracking.get("briefing_ref") or "",
+                        "status": tracking.get("status"),
+                        "aps_total": tracking.get("arbeitspakete_total") or 0,
+                        "aps_erledigt": tracking.get("arbeitspakete_abgeschlossen") or 0,
+                        "naechstes_paket": tracking.get("naechstes_paket") or "",
+                        "last_updated": tracking.get("last_updated") or "",
+                    })
+            except Exception:
+                continue
+    return {"jobs": jobs, "total": len(jobs)}
