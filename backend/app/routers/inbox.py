@@ -912,3 +912,92 @@ async def get_executor_status():
             except Exception:
                 continue
     return {"jobs": jobs, "total": len(jobs)}
+
+
+EXECUTOR_LOGS_DIR = Path(os.environ.get("EXECUTOR_LOGS_DIR", "/app/fabrik/DevFabrik/management/executor_logs"))
+
+
+@router.get("/execution/{idea_id}")
+async def get_execution_detail(idea_id: str):
+    """Detaillierter Execution-Status für eine Idee inkl. AP-Status + Logs."""
+    # Draft laden für idea_ref
+    draft_path = _idea_draft_path(idea_id)
+    if not draft_path.exists():
+        raise HTTPException(status_code=404, detail=f"Draft für {idea_id} nicht gefunden")
+    data = _safe_yaml(draft_path)
+    stab = data.get("_stabschef", {})
+    idea_ref = stab.get("idea_ref") or ""
+    briefing_ref = stab.get("briefing_ref") or ""
+
+    # TRACKING.yaml
+    tracking = {}
+    if idea_ref:
+        tracking_path = PREP_DIR / idea_ref / "TRACKING.yaml"
+        if tracking_path.exists():
+            tracking = _safe_yaml(tracking_path)
+
+    # Briefing laden für AP-Details (Titel, Autonomy, etc.)
+    briefing = {}
+    if briefing_ref:
+        briefing_path = BRIEFINGS_DIR / f"{briefing_ref}.yaml"
+        if briefing_path.exists():
+            briefing = _safe_yaml(briefing_path)
+
+    # AP-Status mit Briefing-Infos anreichern
+    paket_status = tracking.get("paket_status") or {}
+    briefing_aps = {ap["id"]: ap for ap in (briefing.get("arbeitspakete") or []) if "id" in ap}
+    aps = []
+    for ap_id in sorted(paket_status.keys()):
+        ap_track = paket_status[ap_id] if isinstance(paket_status[ap_id], dict) else {"status": paket_status[ap_id]}
+        ap_brief = briefing_aps.get(ap_id, {})
+        # Executor-Log für diesen AP suchen
+        log_content = ""
+        if idea_ref and EXECUTOR_LOGS_DIR.exists():
+            # Pattern: IDEA-xxx_AP-xxxx_YYYYMMDD_HHmm.log
+            idea_slug = idea_ref.replace("IDEA-", "")
+            for log_file in sorted(EXECUTOR_LOGS_DIR.glob(f"*{idea_slug}*{ap_id}*"), reverse=True):
+                try:
+                    text = log_file.read_text(encoding="utf-8", errors="replace")
+                    # Letzte 80 Zeilen
+                    lines = text.strip().split("\n")
+                    log_content = "\n".join(lines[-80:])
+                except Exception:
+                    pass
+                break  # Neuestes Log reicht
+        aps.append({
+            "id": ap_id,
+            "titel": ap_brief.get("titel") or ap_id,
+            "status": ap_track.get("status") or "unbekannt",
+            "autonomy": ap_brief.get("autonomy") or "",
+            "aufwand": ap_brief.get("aufwand") or "",
+            "abhaengigkeiten": ap_brief.get("abhaengigkeiten") or [],
+            "frage": ap_brief.get("frage") or "",
+            "log": log_content,
+            "started_at": ap_track.get("started_at") or "",
+            "finished_at": ap_track.get("finished_at") or "",
+            "error": ap_track.get("error") or "",
+        })
+
+    # Executor-Hauptlog (letzte 20 Zeilen mit Bezug zu dieser Idee)
+    executor_log_lines = []
+    executor_log_path = EXECUTOR_LOGS_DIR / "executor.log"
+    if executor_log_path.exists():
+        try:
+            all_lines = executor_log_path.read_text(encoding="utf-8", errors="replace").strip().split("\n")
+            idea_slug = (idea_ref or idea_id).replace("IDEA-", "")
+            executor_log_lines = [l for l in all_lines[-200:] if idea_slug in l][-20:]
+        except Exception:
+            pass
+
+    return {
+        "idea_id": idea_id,
+        "idea_ref": idea_ref,
+        "briefing_ref": briefing_ref,
+        "tracking_status": tracking.get("status") or "unbekannt",
+        "aps_total": tracking.get("arbeitspakete_total") or 0,
+        "aps_erledigt": tracking.get("arbeitspakete_abgeschlossen") or 0,
+        "naechstes_paket": tracking.get("naechstes_paket") or "",
+        "last_updated": tracking.get("last_updated") or "",
+        "arbeitspakete": aps,
+        "executor_log": executor_log_lines,
+    }

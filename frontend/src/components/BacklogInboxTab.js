@@ -441,31 +441,155 @@ function BriefingCard({ item, onRelease, onHold, onAnswer, actionLoading }) {
   );
 }
 
-// ── Umsetzungs-Karte (Phase 6) ─────────────────────────────────────────
+// ── Umsetzungs-Karte (Phase 6) – aufklappbar mit AP-Details ─────────────
 
-function ExecutionCard({ item }) {
+const AP_STATUS_STYLE = {
+  vorbereitet:   { icon: '⏳', color: '#6b7280', label: 'Vorbereitet' },
+  freigegeben:   { icon: '🟢', color: '#22c55e', label: 'Freigegeben' },
+  in_umsetzung:  { icon: '⚙️', color: '#f59e0b', label: 'In Arbeit' },
+  erledigt:      { icon: '✅', color: '#22c55e', label: 'Erledigt' },
+  blocked:       { icon: '🔴', color: '#ef4444', label: 'Blocked' },
+  unbekannt:     { icon: '❓', color: '#6b7280', label: '?' },
+};
+
+function ExecutionCard({ item, apiGet }) {
+  const [expanded, setExpanded] = useState(false);
+  const [detail, setDetail] = useState(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+  const [expandedAP, setExpandedAP] = useState(null);
+
   const trackStatus = item.tracking_status || 'vorbereitet';
   const isRunning = trackStatus === 'in_umsetzung';
   const isReview = trackStatus === 'review_ausstehend';
-  const color = isRunning ? '#22c55e' : isReview ? '#3b82f6' : '#f59e0b';
+  const isBlocked = trackStatus === 'blocked';
+  const color = isRunning ? '#22c55e' : isReview ? '#3b82f6' : isBlocked ? '#ef4444' : '#f59e0b';
+
+  const toggleExpand = async () => {
+    if (!expanded && !detail) {
+      setLoadingDetail(true);
+      try {
+        const data = await apiGet(`/api/inbox/execution/${item.id}`);
+        if (data) setDetail(data);
+      } catch (e) { console.error(e); }
+      setLoadingDetail(false);
+    }
+    setExpanded(!expanded);
+  };
 
   return (
     <div style={{
       background: 'var(--bg-card, #141824)', borderRadius: 6, marginBottom: 8,
       border: `1px solid ${color}33`, borderLeft: `3px solid ${color}`,
-      padding: '10px 12px',
+      overflow: 'hidden',
     }}>
-      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 5, marginBottom: 4 }}>
-        {isRunning && <span style={{ fontSize: '0.8rem' }}>⚙️</span>}
-        {isReview && <span style={{ fontSize: '0.8rem' }}>👁</span>}
-        {item.b_nummer && <Badge text={item.b_nummer} color="#3b82f6" />}
-        <Badge text={trackStatus} color={color} />
-        {item.aps_total > 0 && (
-          <Badge text={`${item.aps_erledigt || 0}/${item.aps_total} APs`} color="#8b5cf6" />
-        )}
+      {/* Header – klickbar */}
+      <div onClick={toggleExpand} style={{
+        padding: '10px 12px', cursor: 'pointer',
+        display: 'flex', flexDirection: 'column', gap: 4,
+      }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 5 }}>
+          {expanded ? <ChevronDown size={14} style={{ color: '#9ca3af' }} />
+                    : <ChevronRight size={14} style={{ color: '#9ca3af' }} />}
+          {isRunning && <span style={{ fontSize: '0.8rem' }}>⚙️</span>}
+          {isBlocked && <span style={{ fontSize: '0.8rem' }}>🔴</span>}
+          {item.b_nummer && <Badge text={item.b_nummer} color="#3b82f6" />}
+          <Badge text={trackStatus} color={color} />
+          {item.aps_total > 0 && (
+            <Badge text={`${item.aps_erledigt || 0}/${item.aps_total} APs`} color="#8b5cf6" />
+          )}
+        </div>
+        <div style={{ fontSize: '0.85rem', fontWeight: 600,
+          color: 'var(--text-primary, #e2e8f0)', lineHeight: 1.3, paddingLeft: 20 }}>{item.titel}</div>
       </div>
-      <div style={{ fontSize: '0.85rem', fontWeight: 600,
-        color: 'var(--text-primary, #e2e8f0)', lineHeight: 1.3 }}>{item.titel}</div>
+
+      {/* Detail-Panel */}
+      {expanded && (
+        <div style={{ padding: '0 12px 12px 12px', borderTop: '1px solid #ffffff0d' }}>
+          {loadingDetail ? (
+            <div style={{ padding: 12, textAlign: 'center', color: '#6b7280', fontSize: '0.75rem' }}>
+              <RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} /> Lade Details…
+            </div>
+          ) : detail ? (
+            <>
+              {/* AP-Liste */}
+              <div style={{ marginTop: 8 }}>
+                <div style={{ fontSize: '0.7rem', color: '#9ca3af', fontWeight: 600, marginBottom: 6,
+                  textTransform: 'uppercase', letterSpacing: 1 }}>Arbeitspakete</div>
+                {(detail.arbeitspakete || []).map(ap => {
+                  const st = AP_STATUS_STYLE[ap.status] || AP_STATUS_STYLE.unbekannt;
+                  const isAPExpanded = expandedAP === ap.id;
+                  return (
+                    <div key={ap.id} style={{ marginBottom: 4 }}>
+                      <div onClick={() => setExpandedAP(isAPExpanded ? null : ap.id)}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 6, padding: '6px 8px',
+                          borderRadius: 4, cursor: 'pointer',
+                          background: ap.status === 'in_umsetzung' ? '#f59e0b11' :
+                                      ap.status === 'blocked' ? '#ef444411' :
+                                      ap.status === 'erledigt' ? '#22c55e11' : 'transparent',
+                          border: `1px solid ${st.color}22`,
+                        }}>
+                        <span style={{ fontSize: '0.7rem', width: 16 }}>{st.icon}</span>
+                        <span style={{ fontSize: '0.68rem', fontFamily: 'monospace', color: st.color,
+                          fontWeight: 600, minWidth: 52 }}>{ap.id}</span>
+                        <span style={{ fontSize: '0.75rem', color: '#e2e8f0', flex: 1 }}>{ap.titel}</span>
+                        {ap.autonomy && (
+                          <span style={{ fontSize: '0.6rem', color:
+                            ap.autonomy === 'full' ? '#22c55e' :
+                            ap.autonomy === 'ceo_review' ? '#3b82f6' : '#f59e0b' }}>
+                            {(AUTONOMY_STYLE[ap.autonomy] || {}).icon || ''}
+                          </span>
+                        )}
+                        {(ap.log || ap.error) && (
+                          isAPExpanded ? <ChevronDown size={12} style={{ color: '#6b7280' }} />
+                                       : <ChevronRight size={12} style={{ color: '#6b7280' }} />
+                        )}
+                      </div>
+
+                      {/* AP-Log (aufgeklappt) */}
+                      {isAPExpanded && (ap.log || ap.error) && (
+                        <div style={{
+                          margin: '4px 0 4px 24px', padding: 8, borderRadius: 4,
+                          background: '#0c0e14', border: '1px solid #ffffff0a',
+                          maxHeight: 200, overflowY: 'auto',
+                        }}>
+                          {ap.error && (
+                            <div style={{ color: '#ef4444', fontSize: '0.7rem', fontWeight: 600,
+                              marginBottom: 4 }}>❌ {ap.error}</div>
+                          )}
+                          {ap.log && (
+                            <pre style={{
+                              fontSize: '0.65rem', color: '#9ca3af', margin: 0,
+                              whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                              fontFamily: 'monospace', lineHeight: 1.4,
+                            }}>{ap.log}</pre>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Executor-Log für diese Idee */}
+              {detail.executor_log && detail.executor_log.length > 0 && (
+                <div style={{ marginTop: 10 }}>
+                  <div style={{ fontSize: '0.7rem', color: '#9ca3af', fontWeight: 600, marginBottom: 4,
+                    textTransform: 'uppercase', letterSpacing: 1 }}>Executor-Log</div>
+                  <pre style={{
+                    fontSize: '0.62rem', color: '#6b7280', margin: 0, padding: 8,
+                    background: '#0c0e14', borderRadius: 4, border: '1px solid #ffffff0a',
+                    maxHeight: 120, overflowY: 'auto', whiteSpace: 'pre-wrap',
+                    fontFamily: 'monospace', lineHeight: 1.4,
+                  }}>{detail.executor_log.join('\n')}</pre>
+                </div>
+              )}
+            </>
+          ) : (
+            <div style={{ padding: 8, color: '#6b7280', fontSize: '0.75rem' }}>Keine Details verfügbar</div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -705,7 +829,7 @@ function BacklogInboxTab() {
             <LifecycleSection title="In Umsetzung" icon="⚙️" color="#22c55e"
               count={counts.umsetzung || 0} defaultOpen={(counts.umsetzung || 0) > 0}>
               {(phases.umsetzung || []).map(item => (
-                <ExecutionCard key={item.id} item={item} />
+                <ExecutionCard key={item.id} item={item} apiGet={get} />
               ))}
             </LifecycleSection>
 
