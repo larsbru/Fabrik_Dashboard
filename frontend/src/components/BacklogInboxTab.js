@@ -220,20 +220,20 @@ function BriefingCard({ item, onRelease, onHold, onAnswer, actionLoading }) {
   const [briefing, setBriefing] = useState(null);
   const [loadingBriefing, setLoadingBriefing] = useState(false);
   const [answers, setAnswers] = useState({});
-  const [savingAnswer, setSavingAnswer] = useState(null); // welcher frage_index gerade speichert
+  const [savingAnswer, setSavingAnswer] = useState(null);
   const { get } = useApi();
 
-  const loadBriefing = useCallback(async (forceRefresh = false) => {
-    if ((!forceRefresh && briefing) || loadingBriefing) return;
+  const loadBriefing = useCallback(async () => {
+    if (loadingBriefing) return;
     setLoadingBriefing(true);
     const data = await get(`/api/inbox/briefings/${item.id}`);
     if (data?.status === 'ok') setBriefing(data);
     setLoadingBriefing(false);
-  }, [item.id, briefing, loadingBriefing, get]);
+  }, [item.id, loadingBriefing, get]);
 
   useEffect(() => {
-    if (expanded && !briefing) loadBriefing();
-  }, [expanded, briefing, loadBriefing]);
+    if (expanded && !briefing && !loadingBriefing) loadBriefing();
+  }, [expanded, briefing, loadingBriefing, loadBriefing]);
 
   const verdict = briefing?.briefing?.verdict || item.verdict || '';
   const vs = VERDICT_STYLE[verdict] || VERDICT_STYLE['unklar'];
@@ -370,11 +370,17 @@ function BriefingCard({ item, onRelease, onHold, onAnswer, actionLoading }) {
                             onClick={async () => {
                               if (answers[i]?.trim()) {
                                 setSavingAnswer(i);
-                                await onAnswer(item.id, i, answers[i]);
+                                const antwortText = answers[i].trim();
+                                await onAnswer(item.id, i, antwortText);
+                                // Optimistisches Update: Antwort sofort lokal anzeigen
+                                setBriefing(prev => {
+                                  if (!prev?.briefing?.ceo_fragen) return prev;
+                                  const updated = JSON.parse(JSON.stringify(prev));
+                                  updated.briefing.ceo_fragen[i].ceo_antwort = antwortText;
+                                  return updated;
+                                });
                                 setSavingAnswer(null);
                                 setAnswers(prev => ({ ...prev, [i]: '' }));
-                                // Briefing neu laden damit ceo_antwort sichtbar wird
-                                loadBriefing(true);
                               }
                             }}
                             disabled={!answers[i]?.trim() || savingAnswer === i}
@@ -402,16 +408,19 @@ function BriefingCard({ item, onRelease, onHold, onAnswer, actionLoading }) {
                 <button
                   onClick={() => onRelease(item.id)}
                   disabled={actionLoading === item.id}
-                  title={'Zur Umsetzung freigeben – Executor führt APs autonom aus'}
+                  title={allQuestionsAnswered || fragen.length === 0
+                    ? 'Zur Umsetzung freigeben – Executor führt APs autonom aus'
+                    : 'Freigabe möglich – offene Fragen werden übersprungen'}
                   style={{ display: 'flex', alignItems: 'center', gap: 5,
                     fontSize: '0.78rem', fontWeight: 600,
-                    color: '#22c55e',
+                    color: (allQuestionsAnswered || fragen.length === 0) ? '#22c55e' : '#6b7280',
                     padding: '6px 14px', borderRadius: 5,
-                    border: '1px solid #22c55e44',
-                    background: '#22c55e11',
+                    border: `1px solid ${(allQuestionsAnswered || fragen.length === 0) ? '#22c55e66' : '#ffffff22'}`,
+                    background: (allQuestionsAnswered || fragen.length === 0) ? '#22c55e18' : '#ffffff06',
                     cursor: 'pointer',
+                    transition: 'all 0.3s ease',
                     opacity: actionLoading === item.id ? 0.5 : 1 }}>
-                  <Play size={12} /> Freigeben
+                  <Play size={12} /> {(allQuestionsAnswered || fragen.length === 0) ? '✅ Freigeben' : 'Freigeben'}
                 </button>
                 <button
                   onClick={() => onHold(item.id)}
