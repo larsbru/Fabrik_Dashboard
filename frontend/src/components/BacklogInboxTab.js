@@ -220,10 +220,11 @@ function BriefingCard({ item, onRelease, onHold, onAnswer, actionLoading }) {
   const [briefing, setBriefing] = useState(null);
   const [loadingBriefing, setLoadingBriefing] = useState(false);
   const [answers, setAnswers] = useState({});
+  const [savingAnswer, setSavingAnswer] = useState(null); // welcher frage_index gerade speichert
   const { get } = useApi();
 
-  const loadBriefing = useCallback(async () => {
-    if (briefing || loadingBriefing) return;
+  const loadBriefing = useCallback(async (forceRefresh = false) => {
+    if ((!forceRefresh && briefing) || loadingBriefing) return;
     setLoadingBriefing(true);
     const data = await get(`/api/inbox/briefings/${item.id}`);
     if (data?.status === 'ok') setBriefing(data);
@@ -366,18 +367,22 @@ function BriefingCard({ item, onRelease, onHold, onAnswer, actionLoading }) {
                               outline: 'none', boxSizing: 'border-box' }}
                           />
                           <button
-                            onClick={() => {
+                            onClick={async () => {
                               if (answers[i]?.trim()) {
-                                onAnswer(item.id, i, answers[i]);
+                                setSavingAnswer(i);
+                                await onAnswer(item.id, i, answers[i]);
+                                setSavingAnswer(null);
                                 setAnswers(prev => ({ ...prev, [i]: '' }));
+                                // Briefing neu laden damit ceo_antwort sichtbar wird
+                                loadBriefing(true);
                               }
                             }}
-                            disabled={!answers[i]?.trim()}
+                            disabled={!answers[i]?.trim() || savingAnswer === i}
                             style={{ padding: '5px 10px', borderRadius: 4, fontSize: '0.72rem',
                               fontWeight: 600, color: '#3b82f6', background: '#3b82f611',
                               border: '1px solid #3b82f644', cursor: 'pointer',
-                              opacity: answers[i]?.trim() ? 1 : 0.4 }}>
-                            <Send size={10} />
+                              opacity: (answers[i]?.trim() && savingAnswer !== i) ? 1 : 0.4 }}>
+                            {savingAnswer === i ? '⏳' : <Send size={10} />}
                           </button>
                         </div>
                       )}
@@ -545,8 +550,12 @@ function BacklogInboxTab() {
   const handleAnswer = useCallback(async (ideaId, frageIndex, antwort) => {
     setActionLoading(ideaId);
     try {
-      await post(`/api/inbox/briefings/${ideaId}/answer`, { frage_index: frageIndex, antwort });
-      setFeedback({ type: 'success', msg: '✅ Antwort gespeichert' });
+      const result = await post(`/api/inbox/briefings/${ideaId}/answer`, { frage_index: frageIndex, antwort });
+      if (result?.status === 'answered') {
+        setFeedback({ type: 'success', msg: '✅ Antwort gespeichert' });
+      } else {
+        setFeedback({ type: 'error', msg: '❌ Antwort konnte nicht gespeichert werden' });
+      }
       setTimeout(() => fetchLifecycle(), 300);
     } catch (e) {
       setFeedback({ type: 'error', msg: e.message });
