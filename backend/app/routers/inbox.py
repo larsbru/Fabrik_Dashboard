@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import re
@@ -284,11 +285,24 @@ def _read_ideas() -> list[dict]:
 
 
 def _next_b_nummer() -> str:
-    """Nächste freie B-Nummer aus backlog.md ermitteln."""
-    if not BACKLOG_PATH.exists():
-        return "B99"
-    text = BACKLOG_PATH.read_text(encoding="utf-8")
-    nums = [int(m) for m in re.findall(r'\bB(\d+)\b', text)]
+    """Nächste freie B-Nummer aus backlog.md UND allen draft.yaml ermitteln."""
+    nums = []
+    # 1. Aus backlog.md
+    if BACKLOG_PATH.exists():
+        text = BACKLOG_PATH.read_text(encoding="utf-8")
+        nums.extend(int(m) for m in re.findall(r'\bB(\d+)\b', text))
+    # 2. Aus allen draft.yaml (verhindert Duplikate bei Batch-Approve)
+    if INBOX_PROCESSED_DIR.exists():
+        for draft in INBOX_PROCESSED_DIR.glob("*/draft.yaml"):
+            try:
+                with open(draft, encoding="utf-8") as f:
+                    data = yaml.safe_load(f)
+                bn = data.get("b_nummer") or ""
+                m = re.match(r'^B(\d+)$', str(bn))
+                if m:
+                    nums.append(int(m.group(1)))
+            except Exception:
+                continue
     return f"B{max(nums) + 1}" if nums else "B01"
 
 
@@ -405,58 +419,51 @@ def _container_to_host_path(container_path: Path) -> str:
     return s
 
 
+ANALYZE_SERVER_URL = os.environ.get("ANALYZE_SERVER_URL", "http://192.168.44.10:9090")
+
+
 def _run_reanalyze(idea_id: str, extracted_path: Path, draft_path: Path):
-    """Startet analyze_inbox.py via SSH auf Host (claude CLI läuft nur dort)."""
+    """Startet analyze_inbox.py via lokalem HTTP-Service auf Host (Port 9090).
+    
+    Kein SSH mehr – inbox_analyze_server.py läuft als launchd-Service auf ai-brain-01
+    und hat vollen Zugriff auf Claude Code CLI Auth (macOS Keychain).
+    """
     _reanalyze_running[idea_id] = {
         "status": "running",
         "started_at": datetime.utcnow().isoformat(),
         "log": [],
     }
-    # Hinweis: DevFabrik-Volume ist read-only → draft.yaml nur via SSH (Host) schreibbar.
-    # Das analyze_inbox.py Script schreibt den finalen Status selbst.
 
     # Pfade auf Host übersetzen (Volume: /app/fabrik/ → /Users/larsbruckschen/)
-    host_script    = "/Users/larsbruckschen/DevFabrik/management/config/scripts/analyze_inbox.py"
     host_extracted = _container_to_host_path(extracted_path)
     host_draft     = _container_to_host_path(draft_path)
-    # Homebrew-Python + claude CLI PATH explizit setzen (SSH-Login nutzt /usr/bin/python3 ohne Pakete)
-    ssh_cmd = (
-        f"export PATH=/opt/homebrew/bin:/Users/larsbruckschen/.local/bin:/usr/local/bin:$PATH && "
-        f"/opt/homebrew/bin/python3 {host_script} {host_extracted} {host_draft}"
-    )
 
     logs = []
     try:
-        result = subprocess.run(
-            [
-                "ssh",
-                "-i", "/root/.ssh/id_rsa",
-                "-o", "StrictHostKeyChecking=no",
-                "-o", "UserKnownHostsFile=/dev/null",
-                "-o", "IdentitiesOnly=yes",
-                "-o", "ConnectTimeout=10",
-                "larsbruckschen@192.168.44.10",
-                ssh_cmd,
-            ],
-            capture_output=True, text=True, timeout=390,
-            input="",
+        import urllib.request
+        payload = json.dumps({
+            "extracted_path": host_extracted,
+            "draft_path": host_draft,
+        }).encode()
+        req = urllib.request.Request(
+            f"{ANALYZE_SERVER_URL}/analyze",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
         )
-        logs = (result.stdout + result.stderr).splitlines()[-30:]
-        if result.returncode == 0:
+        with urllib.request.urlopen(req, timeout=400) as resp:
+            data = json.loads(resp.read())
+        logs = data.get("log", [])
+        if data.get("status") == "ok":
             _reanalyze_running[idea_id]["status"] = "done"
-            logger.info("Reanalyze done for %s (via SSH)", idea_id)
+            logger.info("Reanalyze done for %s (via analyze-server)", idea_id)
         else:
             _reanalyze_running[idea_id]["status"] = "error"
-            logger.warning("Reanalyze failed for %s via SSH (rc=%s): %s",
-                           idea_id, result.returncode, result.stderr[:300])
-    except subprocess.TimeoutExpired:
-        _reanalyze_running[idea_id]["status"] = "timeout"
-        logs = ["SSH-Timeout nach 390s"]
-        logger.warning("Reanalyze SSH timeout for %s", idea_id)
+            logger.warning("Reanalyze server error for %s: %s", idea_id, logs[-1] if logs else "?")
     except Exception as e:
         _reanalyze_running[idea_id]["status"] = "error"
         logs = [str(e)]
-        logger.error("Reanalyze SSH error for %s: %s", idea_id, e)
+        logger.error("Reanalyze server call failed for %s: %s", idea_id, e)
 
     _reanalyze_running[idea_id]["log"] = logs
     _reanalyze_running[idea_id]["finished_at"] = datetime.utcnow().isoformat()
