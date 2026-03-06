@@ -10,7 +10,7 @@ services:
       - ./config:/app/config
       - ./config/ssh_keys:/root/.ssh:ro
       - ./.env:/app/.env
-      - /Users/larsbruckschen/DevFabrik:/app/fabrik/DevFabrik:ro
+      - /Users/larsbruckschen/DevFabrik:/app/fabrik/DevFabrik:rw
       - /Users/larsbruckschen/Documents/DevFabrik:/app/fabrik/Documents/DevFabrik:ro
       - /Users/larsbruckschen/agent0/logs/agent0.out.log:/app/agent0/agent0.out.log:ro
     environment:

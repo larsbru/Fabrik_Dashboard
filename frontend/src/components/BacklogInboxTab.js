@@ -255,7 +255,7 @@ function IdeaCard({ idea, onAction, actionLoading }) {
               <div style={{ fontSize: '0.72rem', color: '#fbbf24', marginBottom: 6,
                 padding: '6px 10px', background: '#fbbf2411', borderRadius: 5,
                 border: '1px solid #fbbf2433' }}>
-                ⏳ Analyse unvollständig oder fehlgeschlagen.
+                ⏳ Analyse unvollständig oder fehlgeschlagen – Entscheidung trotzdem möglich.
               </div>
               <button
                 onClick={handleReanalyze}
