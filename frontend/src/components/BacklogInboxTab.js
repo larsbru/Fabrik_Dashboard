@@ -394,17 +394,22 @@ function BriefingCard({ item, onRelease, onHold, onAnswer, actionLoading }) {
               {/* Aktions-Leiste */}
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', paddingTop: 8,
                 borderTop: '1px solid #ffffff11' }}>
+                {!allQuestionsAnswered && fragen.length > 0 && (
+                  <div style={{ width: '100%', fontSize: '0.68rem', color: '#f59e0b', marginBottom: 4 }}>
+                    ⚠️ {fragen.filter(f => !f.ceo_antwort).length} offene Frage(n) – Freigabe trotzdem möglich
+                  </div>
+                )}
                 <button
                   onClick={() => onRelease(item.id)}
-                  disabled={!allQuestionsAnswered || actionLoading === item.id}
-                  title={!allQuestionsAnswered ? 'Erst alle CEO-Fragen beantworten' : 'Zur Umsetzung freigeben'}
+                  disabled={actionLoading === item.id}
+                  title={'Zur Umsetzung freigeben – Executor führt APs autonom aus'}
                   style={{ display: 'flex', alignItems: 'center', gap: 5,
                     fontSize: '0.78rem', fontWeight: 600,
-                    color: allQuestionsAnswered ? '#22c55e' : '#4b5563',
+                    color: '#22c55e',
                     padding: '6px 14px', borderRadius: 5,
-                    border: `1px solid ${allQuestionsAnswered ? '#22c55e44' : '#ffffff11'}`,
-                    background: allQuestionsAnswered ? '#22c55e11' : 'transparent',
-                    cursor: allQuestionsAnswered ? 'pointer' : 'not-allowed',
+                    border: '1px solid #22c55e44',
+                    background: '#22c55e11',
+                    cursor: 'pointer',
                     opacity: actionLoading === item.id ? 0.5 : 1 }}>
                   <Play size={12} /> Freigeben
                 </button>
@@ -569,8 +574,12 @@ function BacklogInboxTab() {
   const handleRelease = useCallback(async (ideaId) => {
     setActionLoading(ideaId);
     try {
-      await post(`/api/inbox/briefings/${ideaId}/release`, { ceo_antworten: {} });
-      setFeedback({ type: 'success', msg: '🚀 Zur Umsetzung freigegeben' });
+      const result = await post(`/api/inbox/briefings/${ideaId}/release`, { ceo_antworten: {} });
+      if (result?.status === 'freigegeben') {
+        setFeedback({ type: 'success', msg: '🚀 Zur Umsetzung freigegeben – Executor übernimmt' });
+      } else {
+        setFeedback({ type: 'error', msg: '❌ Freigabe fehlgeschlagen' });
+      }
       setTimeout(() => fetchLifecycle(), 300);
     } catch (e) {
       setFeedback({ type: 'error', msg: e.message });
