@@ -747,6 +747,9 @@ async def get_lifecycle():
                     if tracking_status in ("erledigt",):
                         phases["erledigt"].append(item)
                         counts["erledigt"] += 1
+                    elif tracking_status in ("abgebrochen",):
+                        phases["erledigt"].append(item)
+                        counts["erledigt"] += 1
                     elif tracking_status in ("freigegeben", "in_umsetzung", "review_ausstehend"):
                         phases["umsetzung"].append(item)
                         counts["umsetzung"] += 1
@@ -754,6 +757,9 @@ async def get_lifecycle():
                         item["blocked"] = True
                         phases["umsetzung"].append(item)
                         counts["umsetzung"] += 1
+                    elif tracking_status in ("ceo_review", "duplikat_verdacht"):
+                        phases["briefing"].append(item)
+                        counts["briefing"] += 1
                     else:
                         # vorbereitet oder pending → Briefing-Phase (CEO muss noch freigeben)
                         phases["briefing"].append(item)
