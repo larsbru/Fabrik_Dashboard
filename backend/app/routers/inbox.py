@@ -13,6 +13,9 @@ from pathlib import Path
 from typing import Optional
 
 import yaml
+
+# Lock für atomare B-Nummer-Vergabe (verhindert Duplikate bei parallelen Approve-Calls)
+_b_nummer_lock = threading.Lock()
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
@@ -335,16 +338,17 @@ async def approve_idea(idea_id: str, req: ApproveRequest):
     path = _idea_draft_path(idea_id)
     if not path.exists():
         raise HTTPException(status_code=404, detail=f"Draft für {idea_id} nicht gefunden")
-    data = _safe_yaml(path)
-    b_num = req.b_nummer.strip() or _next_b_nummer()
-    data.setdefault("_meta", {})["status"] = "approved"
-    data["b_nummer"] = b_num
-    data["status"] = "approved"
-    if req.notiz:
-        data["ceo_notiz"] = req.notiz
-    data["approved_at"] = datetime.utcnow().isoformat()
-    with open(path, "w", encoding="utf-8") as f:
-        yaml.dump(data, f, allow_unicode=True, default_flow_style=False)
+    with _b_nummer_lock:
+        data = _safe_yaml(path)
+        b_num = req.b_nummer.strip() or _next_b_nummer()
+        data.setdefault("_meta", {})["status"] = "approved"
+        data["b_nummer"] = b_num
+        data["status"] = "approved"
+        if req.notiz:
+            data["ceo_notiz"] = req.notiz
+        data["approved_at"] = datetime.utcnow().isoformat()
+        with open(path, "w", encoding="utf-8") as f:
+            yaml.dump(data, f, allow_unicode=True, default_flow_style=False)
     logger.info("CEO approved %s → %s", idea_id, b_num)
     return {"status": "approved", "idea_id": idea_id, "b_nummer": b_num}
 
