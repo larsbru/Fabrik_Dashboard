@@ -353,4 +353,94 @@ async def confirm_uat(issue_number: int, repo: Optional[str] = None):
     logger.info("CEO confirm-uat: Issue #%d (%s/%s) geschlossen", issue_number, owner, repo_name)
     await svc.sync()
 
+
+# ── Pipeline-Metriken ────────────────────────────────────────────────────
+
+@router.get("/metrics")
+async def get_pipeline_metrics(repo: Optional[str] = None):
+    """Pipeline-Metriken: Retry-Rate, Durchlaufzeit, Issues/Woche, First-Pass-Success."""
+    svc = github_service
+    if not svc or not svc._configured:
+        raise HTTPException(status_code=503, detail="GitHub nicht konfiguriert")
+
+    if repo and "/" in repo:
+        owner, _, repo_name = repo.partition("/")
+    else:
+        owner = svc.owner
+        repo_name = svc.repo
+
+    token = svc.token
+
+    # Letzte 50 geschlossene Issues abrufen (state=closed, completed)
+    async with httpx.AsyncClient(timeout=20) as client:
+        resp = await client.get(
+            f"{GITHUB_API}/repos/{owner}/{repo_name}/issues",
+            headers=_headers(token),
+            params={"state": "closed", "per_page": 50, "sort": "updated", "direction": "desc"},
+        )
+        if resp.status_code != 200:
+            raise HTTPException(status_code=resp.status_code, detail=f"GitHub API: {resp.text[:200]}")
+        closed_issues = [i for i in resp.json() if "pull_request" not in i]
+
+        # Offene Issues für aktuelle Pipeline-Größe
+        resp2 = await client.get(
+            f"{GITHUB_API}/repos/{owner}/{repo_name}/issues",
+            headers=_headers(token),
+            params={"state": "open", "per_page": 100, "sort": "updated", "direction": "desc"},
+        )
+        open_issues = [i for i in resp2.json() if "pull_request" not in i] if resp2.status_code == 200 else []
+
+    # Metriken berechnen
+    retry_count = 0
+    blocked_count = 0
+    durations = []
+
+    for issue in closed_issues:
+        labels = {l["name"] for l in issue.get("labels", [])}
+        # Retry: hat retry:1, retry:2, retry:3 Labels
+        retries = [l for l in labels if l.startswith("retry:")]
+        if retries:
+            retry_count += 1
+        if "blocked" in labels:
+            blocked_count += 1
+
+        # Durchlaufzeit: created_at → closed_at
+        created = issue.get("created_at")
+        closed = issue.get("closed_at")
+        if created and closed:
+            try:
+                t_created = datetime.fromisoformat(created.replace("Z", "+00:00"))
+                t_closed = datetime.fromisoformat(closed.replace("Z", "+00:00"))
+                dur_hours = (t_closed - t_created).total_seconds() / 3600
+                if dur_hours > 0:
+                    durations.append(dur_hours)
+            except (ValueError, TypeError):
+                pass
+
+    total_closed = len(closed_issues)
+    first_pass = total_closed - retry_count if total_closed > 0 else 0
+    first_pass_rate = round(first_pass / total_closed * 100, 1) if total_closed > 0 else 0
+    retry_rate = round(retry_count / total_closed * 100, 1) if total_closed > 0 else 0
+    avg_duration_hours = round(sum(durations) / len(durations), 1) if durations else 0
+    median_duration_hours = round(sorted(durations)[len(durations) // 2], 1) if durations else 0
+
+    # Offene Pipeline-Verteilung
+    open_blocked = sum(1 for i in open_issues if "blocked" in {l["name"] for l in i.get("labels", [])})
+    open_active = len(open_issues) - open_blocked
+
+    return {
+        "repo": f"{owner}/{repo_name}",
+        "closed_total": total_closed,
+        "retry_rate_pct": retry_rate,
+        "first_pass_rate_pct": first_pass_rate,
+        "retry_count": retry_count,
+        "blocked_count": blocked_count,
+        "avg_duration_hours": avg_duration_hours,
+        "median_duration_hours": median_duration_hours,
+        "open_total": len(open_issues),
+        "open_active": open_active,
+        "open_blocked": open_blocked,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    }
+
     return {"status": "confirmed", "issue_number": issue_number, "repo": f"{owner}/{repo_name}"}

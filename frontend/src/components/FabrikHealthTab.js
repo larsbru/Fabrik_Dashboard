@@ -68,6 +68,51 @@ function ModelRow({ model }) {
   );
 }
 
+function PipelineMetrics() {
+  const [metrics, setMetrics] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/pipeline/metrics')
+      .then(r => r.json())
+      .then(d => { setMetrics(d); setLoading(false); })
+      .catch(() => setLoading(false));
+    const iv = setInterval(() => {
+      fetch('/api/pipeline/metrics').then(r => r.json()).then(d => setMetrics(d)).catch(() => {});
+    }, 60000);
+    return () => clearInterval(iv);
+  }, []);
+
+  if (loading) return <Section icon="📊" title="Pipeline-Metriken" hint="Lade…"><div style={{ color: '#9ca3af', fontSize: 13 }}>Lade…</div></Section>;
+  if (!metrics) return null;
+
+  const statCards = [
+    { label: 'First-Pass-Rate', value: `${metrics.first_pass_rate_pct}%`, color: metrics.first_pass_rate_pct >= 80 ? '#22c55e' : metrics.first_pass_rate_pct >= 50 ? '#eab308' : '#ef4444' },
+    { label: 'Retry-Rate', value: `${metrics.retry_rate_pct}%`, color: metrics.retry_rate_pct <= 20 ? '#22c55e' : metrics.retry_rate_pct <= 40 ? '#eab308' : '#ef4444' },
+    { label: 'Ø Durchlaufzeit', value: `${metrics.avg_duration_hours}h`, color: '#3b82f6' },
+    { label: 'Median', value: `${metrics.median_duration_hours}h`, color: '#6366f1' },
+    { label: 'Abgeschlossen', value: metrics.closed_total, color: '#10b981' },
+    { label: 'Offen', value: metrics.open_total, color: '#f59e0b' },
+    { label: 'Blocked', value: metrics.open_blocked, color: metrics.open_blocked > 0 ? '#ef4444' : '#22c55e' },
+  ];
+
+  return (
+    <Section icon="📊" title="Pipeline-Metriken" hint={`${metrics.repo} · ${metrics.closed_total} geschlossene Issues analysiert`}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+        {statCards.map(c => (
+          <div key={c.label} style={{
+            padding: '10px 14px', borderRadius: 10, background: '#f9fafb',
+            border: '1px solid #e5e7eb', minWidth: 100, flex: '1 1 calc(33% - 10px)'
+          }}>
+            <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 2 }}>{c.label}</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: c.color }}>{c.value}</div>
+          </div>
+        ))}
+      </div>
+    </Section>
+  );
+}
+
 export default function FabrikHealthTab() {
   const [agents, setAgents] = useState(null);
   const [ollama, setOllama] = useState(null);
@@ -224,6 +269,9 @@ export default function FabrikHealthTab() {
           </div>
         )}
       </Section>
+
+      {/* Pipeline-Metriken */}
+      <PipelineMetrics />
 
     </div>
   );
